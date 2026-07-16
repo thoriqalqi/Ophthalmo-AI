@@ -11,7 +11,7 @@
 // Desain TIDAK berubah — semua memakai komponen styles.css yang ada.
 // ============================================================
 
-import { store, isDemo, currentUser, URGENCY, ACTIONS, PROB_BADGE, SYMPTOM_QUESTIONS } from "./store.js";
+import { store, currentUser, URGENCY, ACTIONS, PROB_BADGE, SYMPTOM_QUESTIONS } from "./store.js";
 
 // ---------- elemen global ----------
 const $app = document.getElementById("app");
@@ -101,8 +101,8 @@ function route() {
   if (hash.startsWith("#/nakes") && (!u || (u.role !== "nakes" && u.role !== "admin"))) { location.hash = "#/login"; return; }
   if (hash.startsWith("#/admin") && (!u || u.role !== "admin")) { location.hash = "#/login"; return; }
 
-  if (hash.startsWith("#/demo/")) return handleDemoLogin(hash.split("/")[2]);
-  if (hash.startsWith("#/login")) return renderLogin();
+
+  if (hash.startsWith("#/login"))       return renderLogin();
   if (hash.startsWith("#/nakes/triase")) return renderTriase();
   if (hash.startsWith("#/nakes/pasien/")) return renderPasienDetail(hash.split("/")[3]);
   if (hash.startsWith("#/nakes/pasien")) return renderPasienList();
@@ -116,13 +116,7 @@ function route() {
 }
 window.addEventListener("hashchange", route);
 
-async function handleDemoLogin(role) {
-  try {
-    await store.demoLoginAs(role);
-    toast(`Mode demo: masuk sebagai ${role}.`);
-    location.hash = role === "admin" ? "#/admin" : "#/nakes";
-  } catch (e) { toast(e.message); location.hash = "#/login"; }
-}
+
 
 // ============================================================
 // PORTAL PASIEN (anonim, tanpa login)
@@ -161,7 +155,6 @@ async function renderPasienPortal() {
             <button type="submit" class="btn btn-accent btn-block btn-xl" id="access-btn">Lihat Rekam Medis</button>
           </div>
         </form>
-        ${isDemo ? `<p style="margin-top:1rem;color:var(--text-faint);font-size:0.82rem">Mode demo — coba NIK <strong>3201014455660001</strong> dgn kode <strong>OA-DEMO-2024</strong></p>` : ""}
       </div>
       <div id="access-result"></div>
     </div>
@@ -284,12 +277,6 @@ function renderLogin() {
             <input id="l-pass" type="password" required placeholder="••••••••" /></div>
           <div class="full"><button class="btn btn-accent btn-block btn-xl" id="login-btn">Masuk</button></div>
         </form>
-        ${isDemo ? `
-        <p style="margin:1.2rem 0 0.6rem;color:var(--text-faint);font-size:0.82rem">Mode demo — masuk cepat:</p>
-        <div style="display:flex;gap:0.6rem;flex-wrap:wrap">
-          <a class="btn" href="#/demo/nakes">Demo Nakes</a>
-          <a class="btn" href="#/demo/admin">Demo Admin</a>
-        </div>` : ""}
       </div>
     </div>
     <div>
