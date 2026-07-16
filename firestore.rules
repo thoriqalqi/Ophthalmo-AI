@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // MODE HACKATHON/DEMO: terbuka agar mudah diuji tanpa konfigurasi
+    // custom claims. PRODUKSI: wajib diperketat berdasarkan role via
+    // Firebase Auth custom claims (nakes/admin), lihat catatan di README
+    // bagian "Privasi & Kontrol Akses".
+
+    match /users/{uid} {
+      allow read: if request.auth != null;               // hanya user login (nakes/admin)
+      allow write: if request.auth != null && request.auth.token.role == "admin";
+    }
+
+    match /patients/{docId} {
+      // Nakes boleh baca/tulis (registrasi pasien, update accessCode via Cloud Function).
+      // Pasien TIDAK pernah membaca koleksi ini langsung — akses pasien anonim
+      // WAJIB lewat Cloud Function `patientAccess` (verifikasi NIK + kode di server).
+      allow read, create, update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    match /screening_sessions/{docId} {
+      allow read, create, update: if request.auth != null;
+      allow delete: if false;
+    }
+
+    match /medical_records/{docId} {
+      // Ditulis HANYA oleh Cloud Function (Admin SDK, bypass rules ini).
+      // Nakes & admin login boleh membaca; pasien anonim tidak pernah
+      // membaca koleksi ini langsung.
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+
+    match /audit_logs/{docId} {
+      // Hanya Cloud Function (Admin SDK) yang menulis; hanya admin yang membaca.
+      allow read: if request.auth != null && request.auth.token.role == "admin";
+      allow create, update, delete: if false;
+    }
+  }
+}

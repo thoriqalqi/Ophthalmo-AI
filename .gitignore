@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+functions/node_modules/
+scripts/node_modules/
+server/node_modules/
+
+# Credential & secrets — JANGAN PERNAH di-commit!
+**/serviceAccount.json
+server/.env
+functions/.env
+.env
+
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Kaggle
+kaggle.json

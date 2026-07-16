@@ -1,0 +1,26 @@
+{
+  "name": "Ophthalmo-AI — Triase Kegawatdaruratan Mata",
+  "short_name": "Ophthalmo-AI",
+  "description": "Sistem Pakar Triase Kegawatdaruratan Mata & Rekam Medis Digital untuk Puskesmas",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f3ef",
+  "theme_color": "#f4f3ef",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

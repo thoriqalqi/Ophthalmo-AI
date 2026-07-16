@@ -1,0 +1,8 @@
+{
+  "name": "ophthalmo-ai-scripts",
+  "private": true,
+  "description": "Script setup sekali-jalan (seed user, dsb.)",
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}

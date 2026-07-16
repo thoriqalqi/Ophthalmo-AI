@@ -1,0 +1,20 @@
+{
+  "name": "ophthalmo-ai-server",
+  "version": "1.0.0",
+  "description": "Ophthalmo-AI — Express backend (pengganti Cloud Functions)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.1.0"
+  }
+}
