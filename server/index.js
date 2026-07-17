@@ -26,10 +26,42 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
-const Anthropic = require("@anthropic-ai/sdk");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const pdf = require("pdf-parse");
+
+// ---------- Load Jurnal Referensi Medis (PDF, TXT, MD) ----------
+async function loadJournals() {
+  const journalsDir = path.join(__dirname, "journals");
+  if (!fs.existsSync(journalsDir)) return "";
+  
+  let combinedText = "";
+  try {
+    const files = fs.readdirSync(journalsDir);
+    for (const file of files) {
+      const filePath = path.join(journalsDir, file);
+      const ext = path.extname(file).toLowerCase();
+      
+      if (ext === ".pdf") {
+        const dataBuffer = fs.readFileSync(filePath);
+        try {
+          const parsed = await pdf(dataBuffer);
+          combinedText += `\n\n--- JURNAL REFERENSI: ${file} ---\n${parsed.text}`;
+        } catch (pdfErr) {
+          console.error(`Gagal membaca PDF ${file}:`, pdfErr);
+        }
+      } else if (ext === ".txt" || ext === ".md") {
+        const text = fs.readFileSync(filePath, "utf8");
+        combinedText += `\n\n--- REFERENSI: ${file} ---\n${text}`;
+      }
+    }
+  } catch (err) {
+    console.error("Gagal membaca folder journals:", err);
+  }
+  return combinedText;
+}
 
 // ---------- inisialisasi Firebase Admin ----------
 // Coba serviceAccount.json dulu (lokal); fallback ke GOOGLE_APPLICATION_CREDENTIALS
@@ -112,8 +144,7 @@ const OPHTHALMO_SCHEMA = {
         confidence_score: { type: "number" },
       },
       required: ["urgency_level", "primary_action_category", "is_emergency", "confidence_score"],
-      additionalProperties: false,
-    },
+      },
     clinical_analysis: {
       type: "object",
       properties: {
@@ -129,14 +160,12 @@ const OPHTHALMO_SCHEMA = {
               rationale: { type: "string" },
             },
             required: ["condition_name", "probability", "rationale"],
-            additionalProperties: false,
-          },
+            },
         },
         danger_signs_present: { type: "array", items: { type: "string" } },
       },
       required: ["synthesis_summary", "ml_vision_correlation", "possible_conditions", "danger_signs_present"],
-      additionalProperties: false,
-    },
+      },
     emergency_care_protocol: {
       type: "object",
       properties: {
@@ -146,8 +175,7 @@ const OPHTHALMO_SCHEMA = {
         what_NOT_to_do: { type: "array", items: { type: "string" } },
       },
       required: ["requires_immediate_hospital", "golden_hour_timeframe", "immediate_first_aid_instructions", "what_NOT_to_do"],
-      additionalProperties: false,
-    },
+      },
     recommendations: {
       type: "object",
       properties: {
@@ -160,16 +188,13 @@ const OPHTHALMO_SCHEMA = {
             examination_needed: { type: "string" },
           },
           required: ["specialist_needed", "examination_needed"],
-          additionalProperties: false,
-        },
+          },
       },
       required: ["patient_action_plan", "safe_otc_medication_advice", "doctor_referral_details"],
-      additionalProperties: false,
-    },
+      },
   },
   required: ["triage_assessment", "clinical_analysis", "emergency_care_protocol", "recommendations"],
-  additionalProperties: false,
-};
+  };
 
 // ============================================================
 // SYSTEM PROMPT — Ophthalmo-AI (identik dengan functions/index.js)
@@ -292,8 +317,46 @@ app.post("/api/vision", requireAuth, async (req, res) => {
     }
   }
 
-  // Fallback: mock deterministik
-  if (!vision) vision = mockVisionAnalysis(imageBase64);
+  // Fallback: Analisis gambar rill menggunakan Gemini Vision
+  if (!vision) {
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    if (apiKey) {
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        
+        // Coba deteksi tipe mime atau set default ke jpeg
+        let mimeType = "image/jpeg";
+        let base64Data = imageBase64;
+        if (imageBase64.startsWith("data:")) {
+          const parts = imageBase64.split(",");
+          mimeType = parts[0].match(/:(.*?);/)[1];
+          base64Data = parts[1];
+        }
+
+        const prompt = "Anda adalah model ML Vision khusus mata. Analisis foto mata pasien ini. Deteksi fitur-fitur klinis yang tampak pada segmen eksternal. Kembalikan JSON dengan format ketat: { quality: string, segment: string, detected_features: [{ feature: string, severity: number (0-1)}], raw_summary: string }. Fokus mengevaluasi: Hiperemia Konjungtiva, Kekeruhan Kornea, Edema Palpebra, Asimetri Pupil, dan Benda Asing.\n\nLakukan ekstraksi fitur visual dari foto mata ini dan berikan respons HANYA dalam bentuk JSON yang valid.";
+        const result = await model.generateContent({
+          contents: [{
+            role: "user",
+            parts: [
+              { text: prompt },
+              { inlineData: { data: base64Data, mimeType } }
+            ]
+          }],
+          generationConfig: { responseMimeType: "application/json" }
+        });
+        
+        const responseText = result.response.text();
+        vision = JSON.parse(responseText);
+        vision.source = "gemini-vision-real";
+      } catch (err) {
+        console.error("Gemini Vision gagal menganalisis gambar:", err);
+        vision = mockVisionAnalysis(imageBase64);
+      }
+    } else {
+      vision = mockVisionAnalysis(imageBase64);
+    }
+  }
 
   try {
     const sessionRef = await db.collection("screening_sessions").add({
@@ -355,47 +418,45 @@ app.post("/api/triage", requireAuth, async (req, res) => {
   };
 
   let diagnosis;
-  const apiKey = process.env.ANTHROPIC_API_KEY || "";
+  const apiKey = process.env.GEMINI_API_KEY || "";
 
-  if (apiKey && !apiKey.startsWith("sk-ant-...")) {
-    // --- Jalur produksi: Claude API ---
+  if (apiKey) {
+    // --- Jalur produksi: Gemini API ---
     try {
-      const client = new Anthropic({ apiKey });
-      const response = await client.messages.create({
-        model: "claude-opus-4-5",
-        max_tokens: 4096,
-        system: OPHTHALMO_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content:
-              `--- DATA INPUT PASIEN ---\n` +
-              `PROFIL PASIEN:\n${JSON.stringify(patientProfile, null, 2)}\n\n` +
-              `KELUHAN & GEJALA SUBJEKTIF:\n${JSON.stringify(symptoms, null, 2)}\n\n` +
-              `HASIL DETEKSI MIKRO-MATA DARI MACHINE LEARNING (VISION MODEL):\n${JSON.stringify(session.vision, null, 2)}\n` +
-              `-------------------------\n\n` +
-              `Kembalikan HANYA objek JSON valid sesuai skema berikut (tanpa markdown, tanpa teks tambahan):\n` +
-              `{ triage_assessment, clinical_analysis, emergency_care_protocol, recommendations }`,
-          },
-        ],
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash",
       });
 
-      if (response.stop_reason === "refusal") {
-        throw new Error("Ophthalmo-AI menolak memproses permintaan ini.");
-      }
-      const textBlock = response.content.find((b) => b.type === "text");
-      // Strip markdown code fence jika Claude menambahkannya
-      let rawText = (textBlock?.text || "").trim();
-      rawText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-      diagnosis = JSON.parse(rawText);
+      const journalsContext = await loadJournals();
+
+      const prompt = `${OPHTHALMO_SYSTEM_PROMPT}\n\n` +
+        `--- JURNAL & PANDUAN PENGOBATAN REFERENSI (GROUND TRUTH) ---\n` +
+        `${journalsContext || "Tidak ada file jurnal tambahan."}\n\n` +
+        `--- DATA INPUT PASIEN ---\n` +
+        `PROFIL PASIEN:\n${JSON.stringify(patientProfile, null, 2)}\n\n` +
+        `KELUHAN & GEJALA SUBJEKTIF:\n${JSON.stringify(symptoms, null, 2)}\n\n` +
+        `HASIL DETEKSI MIKRO-MATA DARI MACHINE LEARNING (VISION MODEL):\n${JSON.stringify(session.vision, null, 2)}\n` +
+        `-------------------------`;
+
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: OPHTHALMO_SCHEMA,
+        },
+      });
+
+      const responseText = result.response.text();
+      diagnosis = JSON.parse(responseText);
     } catch (err) {
-      console.error(`Ophthalmo-AI gagal untuk sesi ${sessionId}:`, err);
+      console.error(`Ophthalmo-AI (Gemini) gagal untuk sesi ${sessionId}:`, err);
       // Fail-safe medis: bila AI gagal → CRITICAL/EMERGENCY otomatis
       diagnosis = FAILSAFE_DIAGNOSIS;
     }
   } else {
-    // --- Mock mode (ANTHROPIC_API_KEY belum diset) ---
-    console.warn("ANTHROPIC_API_KEY belum diset — menggunakan mock diagnosis.");
+    // --- Mock mode (GEMINI_API_KEY belum diset) ---
+    console.warn("GEMINI_API_KEY belum diset — menggunakan mock diagnosis.");
     diagnosis = {
       triage_assessment: {
         urgency_level: "HIGH",
@@ -404,8 +465,8 @@ app.post("/api/triage", requireAuth, async (req, res) => {
         confidence_score: 0.72,
       },
       clinical_analysis: {
-        synthesis_summary: "[MOCK] Analisis klinis membutuhkan ANTHROPIC_API_KEY yang valid. Set variable di file .env untuk mengaktifkan Claude.",
-        ml_vision_correlation: "Data ML Vision tersedia namun analisis Claude belum aktif.",
+        synthesis_summary: "[MOCK] Analisis klinis membutuhkan GEMINI_API_KEY yang valid. Set variable di file .env untuk mengaktifkan Gemini.",
+        ml_vision_correlation: "Data ML Vision tersedia namun analisis Gemini belum aktif.",
         possible_conditions: [
           { condition_name: "Perlu evaluasi lebih lanjut", probability: "Sedang", rationale: "API key belum dikonfigurasi — hasil ini adalah mock." },
         ],
@@ -414,7 +475,7 @@ app.post("/api/triage", requireAuth, async (req, res) => {
       emergency_care_protocol: {
         requires_immediate_hospital: false,
         golden_hour_timeframe: "Tidak applicable",
-        immediate_first_aid_instructions: ["Segera konfigurasi ANTHROPIC_API_KEY untuk mendapatkan triase klinis sesungguhnya."],
+        immediate_first_aid_instructions: ["Segera konfigurasi GEMINI_API_KEY untuk mendapatkan triase klinis sesungguhnya."],
         what_NOT_to_do: [],
       },
       recommendations: {
@@ -572,6 +633,6 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n🚀 Ophthalmo-AI Server berjalan di port ${PORT}`);
   console.log(`   Health check: http://localhost:${PORT}/health`);
-  console.log(`   Mode Claude : ${process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY.startsWith("sk-ant-...") ? "✅ Aktif" : "⚠️  Mock (set ANTHROPIC_API_KEY di .env)"}`);
+  console.log(`   Mode Gemini : ${process.env.GEMINI_API_KEY && !process.env.GEMINI_API_KEY.startsWith("GANTI_") ? "✅ Aktif" : "⚠️  Mock (set GEMINI_API_KEY di .env)"}`);
   console.log(`   Vision model: ${process.env.VISION_ENDPOINT ? "✅ " + process.env.VISION_ENDPOINT : "⚠️  Mock (VISION_ENDPOINT belum diset)"}\n`);
 });

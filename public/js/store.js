@@ -11,7 +11,7 @@ import { firebaseConfig, BACKEND_URL } from "./firebase-config.js";
 export const URGENCY = {
   LOW:      { label: "Rendah",  badge: "ringan" },
   MEDIUM:   { label: "Sedang",  badge: "sedang" },
-  HIGH:     { label: "Tinggi",  badge: "kritis" },
+  HIGH:     { label: "Tinggi",  badge: "tinggi" },
   CRITICAL: { label: "Kritis",  badge: "kritis" },
 };
 
@@ -156,11 +156,35 @@ export const store = {
   async listRecords({ patientId, nakesUid } = {}) {
     const { db, fsMod } = await firebase();
     let q = fsMod.collection(db, "medical_records");
-    if (patientId)    q = fsMod.query(q, fsMod.where("patientId", "==", patientId), fsMod.orderBy("createdAt", "desc"));
-    else if (nakesUid) q = fsMod.query(q, fsMod.where("nakesUid", "==", nakesUid),  fsMod.orderBy("createdAt", "desc"));
-    else              q = fsMod.query(q, fsMod.orderBy("createdAt", "desc"), fsMod.limit(200));
+    // Workaround: Hilangkan orderBy jika pakai where untuk hindari kebutuhan composite index
+    if (patientId) {
+      q = fsMod.query(q, fsMod.where("patientId", "==", patientId));
+    } else if (nakesUid) {
+      q = fsMod.query(q, fsMod.where("nakesUid", "==", nakesUid));
+    } else {
+      q = fsMod.query(q, fsMod.orderBy("createdAt", "desc"), fsMod.limit(200));
+    }
     const snap = await fsMod.getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    let records = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    
+    // Sort manual di client (menggantikan orderBy desc yang gagal)
+    if (patientId || nakesUid) {
+      records.sort((a, b) => {
+        const ta = a.createdAt?.seconds || 0;
+        const tb = b.createdAt?.seconds || 0;
+        return tb - ta;
+      });
+    }
+    return records;
+  },
+
+  async updateRecordStatus(recordId, status, notes) {
+    const { db, fsMod } = await firebase();
+    await fsMod.updateDoc(fsMod.doc(db, "medical_records", recordId), {
+      status,
+      nakesNotes: notes || "",
+      updatedAt: fsMod.serverTimestamp()
+    });
   },
 
   // ---------- AKSES PASIEN ANONIM (NIK + kode) ----------
@@ -206,11 +230,14 @@ export const store = {
       this.listPatients(),
       (async () => {
         const { db, fsMod } = await firebase();
-        return fsMod.getDocs(fsMod.query(
+        // Workaround: Hapus filter kedua untuk hindari composite index
+        const snap = await fsMod.getDocs(fsMod.query(
           fsMod.collection(db, "users"),
-          fsMod.where("role", "==", "nakes"),
-          fsMod.where("active", "==", true)
+          fsMod.where("role", "==", "nakes")
         ));
+        // Filter aktif manual di client
+        const activeCount = snap.docs.filter(d => d.data().active === true).length;
+        return { size: activeCount };
       })(),
     ]);
     const today = new Date().toDateString();

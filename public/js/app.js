@@ -11,7 +11,17 @@
 // Desain TIDAK berubah — semua memakai komponen styles.css yang ada.
 // ============================================================
 
-import { store, currentUser, URGENCY, ACTIONS, PROB_BADGE, SYMPTOM_QUESTIONS } from "./store.js";
+import { store, currentUser, URGENCY, ACTIONS, SYMPTOM_QUESTIONS } from "./store.js";
+
+// Unregister Service Worker agar cache tidak memblokir update
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    for (const r of regs) r.unregister();
+  });
+  caches.keys().then((keys) => {
+    keys.forEach((k) => caches.delete(k));
+  });
+}
 
 // ---------- elemen global ----------
 const $app = document.getElementById("app");
@@ -41,14 +51,13 @@ function fmtDate(x) {
 
 const urgencyBadge = (u) => `<span class="badge badge-${URGENCY[u].badge}">${esc(URGENCY[u].label)}</span>`;
 const actionBadge = (a) => `<span class="badge badge-${ACTIONS[a].badge}">${esc(ACTIONS[a].label)}</span>`;
-const probBadge = (p) => `<span class="badge badge-${PROB_BADGE[p] || "neutral"}">${esc(p)}</span>`;
 const confPct = (c) => `${Math.round(c * 100)}%`;
 
 // ---------- indikator koneksi ----------
 function renderConnection() {
   const online = navigator.onLine;
-  $connDot.className = "dot " + (online ? "online" : "offline");
-  $connLabel.textContent = online ? "Online" : "Offline";
+  if ($connDot) $connDot.className = "dot " + (online ? "online" : "offline");
+  if ($connLabel) $connLabel.textContent = online ? "Online" : "Offline";
 }
 window.addEventListener("online", renderConnection);
 window.addEventListener("offline", renderConnection);
@@ -57,32 +66,48 @@ renderConnection();
 // ---------- indikator role + nav dinamis ----------
 function renderChrome() {
   const u = currentUser();
+  const statusCluster = document.getElementById("status-cluster");
+
   if (u) {
-    $roleDot.className = "dot online";
-    $roleLabel.textContent = `${u.role === "admin" ? "Admin" : "Nakes"} · ${u.name.split(" ")[0]}`;
+    // Logged in: right cluster = CTA + avatar
+    statusCluster.innerHTML = `
+      <a href="#/nakes/triase" style="background: var(--accent); color: #fff; padding: 0.42rem 1rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; text-decoration: none; text-transform: uppercase; letter-spacing: 0.07em; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;">
+        ＋ New Triage
+      </a>
+      <a href="#logout" data-logout="1" style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(0,0,0,0.12); flex-shrink:0;" title="Logout — ${esc(u.name)}">
+        <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=1438ff&color=fff&bold=true&size=64" style="width:100%; height:100%; object-fit:cover;">
+      </a>
+    `;
   } else {
-    $roleDot.className = "dot";
-    $roleLabel.textContent = "Anonim";
+    // Not logged in: right cluster = subtle Super Admin button
+    statusCluster.innerHTML = `
+      <a href="#/login" style="display: flex; align-items: center; gap: 0.4rem; padding: 0.38rem 0.85rem; border: 1px solid rgba(0,0,0,0.12); border-radius: 999px; font-size: 0.68rem; font-weight: 700; color: var(--text-dim); text-decoration: none; text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; transition: border-color 0.15s, color 0.15s;" onmouseover="this.style.borderColor='#111'; this.style.color='#111'" onmouseout="this.style.borderColor='rgba(0,0,0,0.12)'; this.style.color='var(--text-dim)'">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.029 10 8 10c-2.029 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/></svg>
+        Super Admin
+      </a>
+    `;
   }
 
   const links = !u
-    ? [["#/", "Cek Rekam Medis"], ["#/login", "Login Nakes"]]
+    ? [["#/", "CEK REKAM MEDIS"], ["#/about", "About"], ["#/login", "Login Nakes"]]
     : u.role === "nakes"
-      ? [["#/nakes", "Dashboard"], ["#/nakes/triase", "Triase Baru"], ["#/nakes/pasien", "Rekam Medis"], ["#logout", "Keluar"]]
-      : [["#/admin", "Dashboard"], ["#/admin/audit", "Audit Log"], ["#/admin/users", "User"], ["#/admin/arsip", "Arsip"], ["#logout", "Keluar"]];
+      ? [["#/nakes", "Dashboard"], ["#/nakes/triase", "New Triage"], ["#/nakes/pasien", "Patient Records"]]
+      : [["#/admin", "Dashboard"], ["#/admin/audit", "Audit Log"], ["#/admin/users", "Users"], ["#/admin/arsip", "Arsip"]];
 
   const hash = location.hash || "#/";
+  const $nav = document.getElementById("nav");
   $nav.innerHTML = links
     .map(([href, label]) => {
-      const active = href !== "#logout" && (hash === href || (href !== "#/" && hash.startsWith(href)));
-      return `<a href="${href}" class="${active ? "active" : ""}" ${href === "#logout" ? 'data-logout="1"' : ""}>${label}</a>`;
+      const active = hash === href || (href !== "#/" && hash.startsWith(href));
+      return `<a href="${href}" class="${active ? "active" : ""}">${label}</a>`;
     })
     .join("");
 
-  $nav.querySelector("[data-logout]")?.addEventListener("click", async (e) => {
+  // Logout handler on avatar
+  statusCluster.querySelector("[data-logout]")?.addEventListener("click", async (e) => {
     e.preventDefault();
     await store.logout();
-    scr = null; // buang state triase yang belum selesai
+    scr = null;
     toast("Anda telah keluar.");
     if (location.hash === "#/" || location.hash === "") route();
     else location.hash = "#/";
@@ -103,6 +128,7 @@ function route() {
 
 
   if (hash.startsWith("#/login"))       return renderLogin();
+  if (hash.startsWith("#/about"))        return renderAbout();
   if (hash.startsWith("#/nakes/triase")) return renderTriase();
   if (hash.startsWith("#/nakes/pasien/")) return renderPasienDetail(hash.split("/")[3]);
   if (hash.startsWith("#/nakes/pasien")) return renderPasienList();
@@ -119,56 +145,244 @@ window.addEventListener("hashchange", route);
 
 
 // ============================================================
-// PORTAL PASIEN (anonim, tanpa login)
+// ABOUT PAGE
 // ============================================================
-async function renderPasienPortal() {
-  const s = await store.stats();
+function renderAbout() {
   $app.innerHTML = `
-    <div class="page-header">
-      <div class="eyebrow">Portal Pasien · Tanpa Login</div>
-      <h1 class="page-title">Cek <span class="accent">Rekam Medis</span> Anda</h1>
-      <p class="page-sub">Masukkan NIK dan kode akses unik yang diberikan petugas kesehatan
-      saat pemeriksaan untuk melihat hasil triase mata Anda secara aman.</p>
+    <div class="page-header" style="text-align:center; padding: 3.5rem 2.4rem;">
+      <div class="eyebrow">Tentang Kami</div>
+      <h1 class="page-title" style="font-size: clamp(2.2rem,5vw,4.5rem);">OPHTHALMO<span class="accent">-AI</span></h1>
+      <p class="page-sub" style="margin: 1rem auto 0; max-width: 580px;">Sistem Pakar Triase Kegawatdaruratan Mata berbasis Kecerdasan Buatan untuk fasilitas kesehatan primer Indonesia.</p>
     </div>
 
-    <div class="stats-row">
-      <div class="stat"><div class="stat-value">${s.totalScreenings}</div><div class="stat-label">Total Triase</div></div>
-      <div class="stat"><div class="stat-value accent">${s.totalPatients}</div><div class="stat-label">Pasien Terdaftar</div></div>
-      <div class="stat"><div class="stat-value danger">${s.emergencies}</div><div class="stat-label">Kasus Kegawatdaruratan</div></div>
-      <div class="stat"><div class="stat-value warn">4</div><div class="stat-label">Kategori Tindakan</div></div>
-    </div>
-
-    <div class="split">
-    <div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
       <div class="card">
-        <div class="card-title">Verifikasi Identitas</div>
-        <form id="access-form" class="form-grid">
-          <div class="full">
-            <label for="p-nik">NIK (16 digit)</label>
-            <input id="p-nik" required minlength="16" maxlength="16" pattern="[0-9]{16}" placeholder="cth. 3201014455660001" inputmode="numeric" autocomplete="off" />
-          </div>
-          <div class="full">
-            <label for="p-code">Kode Akses</label>
-            <input id="p-code" required placeholder="cth. OA-XXXX-XXXX" autocomplete="off" style="text-transform:uppercase" />
-          </div>
-          <div class="full">
-            <button type="submit" class="btn btn-accent btn-block btn-xl" id="access-btn">Lihat Rekam Medis</button>
-          </div>
-        </form>
+        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🔬</div>
+        <div class="card-title">Misi Kami</div>
+        <p style="color: var(--text-dim); line-height: 1.7; font-size: 0.95rem;">Mendemokratisasi akses terhadap layanan triase mata berkualitas tinggi di fasilitas kesehatan primer melalui teknologi AI mutakhir — sehingga setiap pasien mendapatkan penanganan yang tepat waktu dan tepat sasaran.</p>
       </div>
-      <div id="access-result"></div>
+      <div class="card">
+        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🤖</div>
+        <div class="card-title">Teknologi</div>
+        <p style="color: var(--text-dim); line-height: 1.7; font-size: 0.95rem;">Menggabungkan <strong>Computer Vision</strong> untuk deteksi mikro-patologi mata dari foto, dengan <strong>LLM (Gemini AI)</strong> untuk penalaran klinis mendalam — menghasilkan diagnosis yang komprehensif dan dapat dipercaya.</p>
+      </div>
+      <div class="card">
+        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🏥</div>
+        <div class="card-title">Untuk Siapa</div>
+        <p style="color: var(--text-dim); line-height: 1.7; font-size: 0.95rem;"><strong>Tenaga Kesehatan (Nakes)</strong> di Puskesmas mendapat alat bantu triase berbasis AI. <strong>Dinas Kesehatan (Dinkes)</strong> dapat memantau data secara real-time. <strong>Pasien</strong> dapat mengakses rekam medis secara mandiri dan aman.</p>
+      </div>
     </div>
-    <div>
-      <div class="card card-dark">
-        <div class="card-title">Cara Kerja</div>
-        <div class="detail-grid">
-          <div class="detail-field"><div class="k">Langkah 1</div><div class="v">Periksa di Puskesmas</div></div>
-          <div class="detail-field"><div class="k">Langkah 2</div><div class="v">Terima NIK + Kode</div></div>
-          <div class="detail-field"><div class="k">Langkah 3</div><div class="v">Cek Hasil di Sini</div></div>
-          <div class="detail-field"><div class="k">Privasi</div><div class="v">Data Terenkripsi</div></div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <!-- Card Alur Kerja -->
+      <div class="card" style="padding: 2.5rem; margin-bottom: 0;">
+        <div class="eyebrow" style="margin-bottom: 0.8rem;">Alur Kerja Sistem</div>
+        <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 1.5rem; letter-spacing: -0.02em;">DARI FOTO MATA<br>KE TRIASE FINAL</h2>
+        <ol style="list-style: none; display: flex; flex-direction: column; gap: 1.1rem; padding: 0;">
+          ${["Nakes memfoto kondisi mata pasien", "Computer Vision menganalisis mikropatologi (edema, kekeruhan, hiperemia)", "Nakes mengisi keluhan klinis tambahan", "Ophthalmo-AI menyusun triase, protokol darurat & rekomendasi", "Hasil tersimpan di rekam medis digital — pasien dapat akses mandiri"].map((s, i) => `
+          <li style="display: flex; gap: 1rem; align-items: flex-start;">
+            <span style="background: var(--accent); color: #fff; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.78rem; flex-shrink:0;">${i+1}</span>
+            <span style="color: var(--text-dim); font-size: 0.95rem; padding-top: 0.15rem;">${s}</span>
+          </li>`).join("")}
+        </ol>
+      </div>
+
+      <!-- Card Keunggulan -->
+      <div class="card card-dark" style="padding: 2.5rem; margin-bottom: 0; display: flex; flex-direction: column;">
+        <div class="eyebrow" style="margin-bottom: 0.8rem; color: #9ca3af;">Keunggulan</div>
+        <h2 style="font-size: 1.8rem; font-weight: 800; margin-bottom: 1.5rem; letter-spacing: -0.02em; color: #fff;">FITUR UNGGULAN SYSTEM</h2>
+        <div style="display: flex; flex-direction: column; gap: 1rem; margin-top: 0.5rem;">
+          ${["Triase berbasis AI terpercaya (bukan sekedar chatbot)", "Protokol kegawatdaruratan golden hour otomatis", "Rekam medis digital terenkripsi di Firebase", "Dashboard analitik real-time untuk Dinkes", "Akses pasien anonim dengan kode unik"].map(x => `
+          <div style="display:flex; gap: 0.8rem; align-items: center;">
+            <span style="color: #4ade80; font-size: 1.1rem; font-weight: bold;">✓</span>
+            <span style="font-size: 0.95rem; color: #d1d5db;">${x}</span>
+          </div>`).join("")}
         </div>
       </div>
     </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+      <a href="#/" class="btn btn-accent" style="margin-right: 1rem;">Cek Rekam Medis →</a>
+      <a href="#/login" class="btn">Login Nakes</a>
+    </div>
+  `;
+}
+
+// ============================================================
+// PORTAL PASIEN (anonim, tanpa login)
+// ============================================================
+async function renderPasienPortal() {
+  $app.innerHTML = `
+    <!-- HERO HEADER CARD (Matches satyaxbt SELECTED WORK card) -->
+    <div class="page-header" style="text-align: left; padding: 3rem; margin-bottom: 2rem;">
+      <div class="eyebrow" style="color: var(--accent); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 0.8rem;">PORTAL PASIEN • AKSES MANDIRI</div>
+      <h1 class="page-title" style="font-size: clamp(2.2rem, 5vw, 4.2rem); font-weight: 800; text-transform: uppercase; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 1.5rem; color: var(--text);">CEK REKAM MEDIS</h1>
+      <p class="page-sub" style="color: var(--text-dim); margin-top: 1rem; max-width: 48rem; font-size: 1.02rem; line-height: 1.6;">Masukkan NIK Anda beserta kode akses unik yang diberikan oleh petugas kesehatan saat pemeriksaan Puskesmas untuk mengunduh, melihat, dan mencetak laporan triase secara aman.</p>
+    </div>
+
+    <!-- WORKFLOW SECTION CARD (Matches satyaxbt SECTION A / CONTENT COLLABORATIONS style) -->
+    <div class="card" style="padding: 3rem; margin-bottom: 2rem;">
+      <div class="eyebrow" style="color: var(--accent); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 0.8rem;">ALUR SISTEM</div>
+      <h2 style="font-size: 1.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 0.8rem; color: var(--text);">ALUR PEMERIKSAAN MATA</h2>
+      <p style="color: var(--text-dim); font-size: 1rem; max-width: 48rem; margin-bottom: 2rem; line-height: 1.6;">Proses triase digital kami menggunakan model machine learning canggih terintegrasi guna memberikan analisis tercepat dan rekomendasi medis akurat.</p>
+      
+      <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin-bottom: 2rem;" />
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+        <!-- Langkah 1 -->
+        <div style="background: #fafafa; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1.2rem; transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+          <div style="width: 48px; height: 48px; background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+            <svg width="18" height="18" fill="var(--accent)" viewBox="0 0 16 16"><path d="M8 0a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2H9v6a1 1 0 1 1-2 0V9H1a1 1 0 0 1 0-2h6V1a1 1 0 0 1 1-1z"/></svg>
+          </div>
+          <div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.02em;">PERIKSA MATA</div>
+            <div style="font-size: 0.72rem; color: var(--text-faint); text-transform: uppercase; font-weight: 700; margin-top: 0.1rem; letter-spacing: 0.05em;">Langkah 1 • Puskesmas</div>
+          </div>
+        </div>
+        <!-- Langkah 2 -->
+        <div style="background: #fafafa; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1.2rem; transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+          <div style="width: 48px; height: 48px; background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+            <svg width="18" height="18" fill="var(--accent)" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-1zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-1zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-1z"/></svg>
+          </div>
+          <div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.02em;">KODE AKSES NIK</div>
+            <div style="font-size: 0.72rem; color: var(--text-faint); text-transform: uppercase; font-weight: 700; margin-top: 0.1rem; letter-spacing: 0.05em;">Langkah 2 • Terima Kode</div>
+          </div>
+        </div>
+        <!-- Langkah 3 -->
+        <div style="background: #fafafa; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 1.5rem; display: flex; align-items: center; gap: 1.2rem; transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);" onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform='none'">
+          <div style="width: 48px; height: 48px; background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+            <svg width="18" height="18" fill="var(--accent)" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+          </div>
+          <div>
+            <div style="font-size: 0.95rem; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.02em;">HASIL DIAGNOSIS</div>
+            <div style="font-size: 0.72rem; color: var(--text-faint); text-transform: uppercase; font-weight: 700; margin-top: 0.1rem; letter-spacing: 0.05em;">Langkah 3 • Verifikasi</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FORMULIR VERIFIKASI IDENTITAS CARD -->
+    <div class="card" style="padding: 3rem; margin-bottom: 2rem;">
+      <div class="eyebrow" style="color: var(--accent); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 0.8rem;">VERIFIKASI INTEGRITAS</div>
+      <h2 style="font-size: 1.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 0.8rem; color: var(--text);">VERIFIKASI IDENTITAS</h2>
+      <p style="color: var(--text-dim); font-size: 1rem; max-width: 48rem; margin-bottom: 2rem; line-height: 1.6;">Keamanan data Anda terjamin sepenuhnya melalui sistem validasi enkripsi data end-to-end.</p>
+      
+      <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin-bottom: 2.5rem;" />
+
+      <form id="access-form" style="max-width: 800px; margin: 0 auto; text-align: left;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
+          <div>
+            <label for="p-nik" style="font-size: 0.7rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; display: block; margin-bottom: 0.5rem; letter-spacing: 0.05em;">NIK (16 digit)</label>
+            <div style="position: relative;">
+              <svg style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #aaa;" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M3 14s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3zm5-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>
+              <input id="p-nik" required minlength="16" maxlength="16" pattern="[0-9]{16}" placeholder="cth. 3201014455660001" inputmode="numeric" autocomplete="off" style="width: 100%; padding: 1rem 1rem 1rem 2.8rem; border: 1px solid var(--border); border-radius: 12px; font-size: 0.95rem; outline: none; background: #fafafa; font-family: inherit;" />
+            </div>
+          </div>
+          <div>
+            <label for="p-code" style="font-size: 0.7rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase; display: block; margin-bottom: 0.5rem; letter-spacing: 0.05em;">Kode Akses</label>
+            <div style="position: relative;">
+              <svg style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #aaa;" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+              <input id="p-code" required placeholder="CTH. OA-XXXX-XXXX" autocomplete="off" style="width: 100%; padding: 1rem 1rem 1rem 2.8rem; border: 1px solid var(--border); border-radius: 12px; font-size: 0.95rem; outline: none; text-transform: uppercase; background: #fafafa; font-family: inherit;" />
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" id="access-btn" class="btn btn-accent" style="width: 100%; padding: 1.2rem; border-radius: 999px; font-size: 0.88rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          LIHAT REKAM MEDIS
+          <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/></svg>
+        </button>
+        
+        <div style="text-align: center; margin-top: 1.5rem; font-size: 0.6rem; color: #aaa; text-transform: uppercase; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.4rem; letter-spacing: 0.05em;">
+          <svg width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg>
+          DATA TERENKRIPSI END-TO-END
+        </div>
+      </form>
+      <div id="access-result"></div>
+    </div>
+
+    <!-- 2-COLUMN SPLIT: VIDEO PANDUAN (LEFT CARD) & HELP/SECURITY (RIGHT CARDS) -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+      <!-- Left Card: Video Panduan -->
+      <div class="card" style="display: flex; flex-direction: column;">
+        <div class="eyebrow" style="color: var(--accent); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 0.8rem;">PANDUAN VISUAL</div>
+        <h2 style="font-size: 1.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 0.8rem; color: var(--text);">DEMO PENGGUNAAN SISTEM</h2>
+        <p style="color: var(--text-dim); font-size: 0.95rem; margin-bottom: 1.5rem; line-height: 1.6;">Tonton video demo singkat ini untuk mengetahui cara lengkap memasukkan NIK dan membaca hasil triase klinis Anda.</p>
+        
+        <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin-bottom: 1.5rem;" />
+        
+        <div style="border-radius: 12px; overflow: hidden; background: #eaeaea; aspect-ratio: 16/9; position: relative; border: 1px solid rgba(0,0,0,0.08);">
+          <video controls style="width: 100%; height: 100%; object-fit: cover; display: block;">
+            <source src="https://www.w3schools.com/html/mov_bbb.mp4" type="video/mp4">
+            Browser Anda tidak mendukung tag video.
+          </video>
+        </div>
+      </div>
+
+      <!-- Right Column: Staged Cards (Help & Security) -->
+      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Help Card -->
+        <div class="card" style="margin-bottom: 0; flex: 1; display: flex; flex-direction: column;">
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.6rem; color: #111; text-transform: uppercase; letter-spacing: 0.02em;">
+            <svg width="18" height="18" fill="var(--accent)" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M5.255 5.786a.237.237 0 0 0 .241.247h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286zm1.557 5.763c0 .533.425.927 1.01.927.609 0 1.028-.394 1.028-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94z"/></svg>
+            Butuh Bantuan?
+          </h3>
+          <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: auto;">
+            <a href="#" style="color: var(--text-dim); text-decoration: none; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 0.6rem;">Lupa kode akses? <svg width="10" height="10" fill="#ccc" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/></svg></a>
+            <a href="#" style="color: var(--text-dim); text-decoration: none; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.04); padding-bottom: 0.6rem;">Berapa lama rekam medis tersedia? <svg width="10" height="10" fill="#ccc" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/></svg></a>
+            <a href="#" style="color: var(--text-dim); text-decoration: none; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between; padding-bottom: 0.6rem;">Cara membaca hasil triase? <svg width="10" height="10" fill="#ccc" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/></svg></a>
+          </div>
+          <button class="btn btn-accent btn-block" style="margin-top: 1.5rem; font-size: 0.78rem; border-radius: 999px; min-height: 44px; padding: 0.5rem 1rem;">HUBUNGI DUKUNGAN</button>
+        </div>
+
+        <!-- Security Card -->
+        <div class="card" style="background-color: #fafafa; margin-bottom: 0; flex: 1; display: flex; flex-direction: column;">
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.6rem; color: #111; text-transform: uppercase; letter-spacing: 0.02em;">
+            <svg width="16" height="16" fill="var(--accent)" viewBox="0 0 16 16"><path d="M5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/></svg>
+            Sistem Keamanan
+          </h3>
+          <p style="color: var(--text-dim); line-height: 1.5; font-size: 0.88rem; margin-bottom: auto;">Data Anda dilindungi dengan enkripsi end-to-end tingkat lanjut. Hanya Anda dan tenaga medis berwenang yang dapat mengakses informasi rekam medis ini.</p>
+          <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <span style="font-size: 0.65rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 0.4rem; letter-spacing: 0.05em;"><svg width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg> ENKRIPSI</span>
+            <span style="font-size: 0.65rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 0.4rem; letter-spacing: 0.05em;"><svg width="10" height="10" fill="currentColor" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/></svg> PRIVASI</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANDUAN CEPAT (BOTTOM CARD) -->
+    <div class="card" style="padding: 3rem; text-align: center; margin-bottom: 2rem;">
+      <div class="eyebrow" style="color: var(--accent); font-weight: 700; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.18em; margin-bottom: 0.8rem;">RINGKASAN CEPAT</div>
+      <h2 style="font-size: 1.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: -0.02em; margin-bottom: 0.8rem; color: var(--text);">PANDUAN VERIFIKASI IDENTITAS</h2>
+      <p style="color: var(--text-dim); font-size: 1rem; max-width: 48rem; margin: 0 auto 2.5rem auto; line-height: 1.6;">Pastikan seluruh data yang Anda masukkan sesuai dengan instruksi berikut.</p>
+      
+      <hr style="border: 0; border-top: 1px solid rgba(0,0,0,0.08); margin-bottom: 2.5rem;" />
+      
+      <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4rem;">
+        <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+          <svg width="24" height="24" fill="var(--accent)" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a.5.5 0 0 1 .5-.5h11.793l-3.147-3.146a.5.5 0 0 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L13.293 8.5H1.5A.5.5 0 0 1 1 8z"/></svg>
+          <div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: #222; text-transform: uppercase;">INPUT NIK</div>
+            <div style="font-size: 0.78rem; color: var(--text-faint);">16 Digit Sesuai KTP Anda</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+          <svg width="24" height="24" fill="var(--accent)" viewBox="0 0 16 16"><path d="M3.5 11.5a3.5 3.5 0 1 1 3.163-5h1.232l.702.701a.5.5 0 0 1 0 .708l-.702.701H7.728l-.344.345a.5.5 0 0 1-.708 0l-.344-.345H5.06a3.5 3.5 0 0 1-1.56 3.19zM2.5 8a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+          <div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: #222; text-transform: uppercase;">KODE AKSES</div>
+            <div style="font-size: 0.78rem; color: var(--text-faint);">Ditemukan Di Struk Pemeriksaan</div>
+          </div>
+        </div>
+        
+        <div style="display: flex; align-items: center; gap: 1rem; text-align: left;">
+          <svg width="24" height="24" fill="var(--accent)" viewBox="0 0 16 16"><path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"/></svg>
+          <div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: #222; text-transform: uppercase;">LIHAT HASIL</div>
+            <div style="font-size: 0.78rem; color: var(--text-faint);">Data Bersifat Instan &amp; Aman</div>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 
@@ -202,6 +416,55 @@ async function renderPasienPortal() {
   });
 }
 
+// ---------- indikator visual rekam medis ----------
+// Skala urgensi 4 tingkat; status selalu ikon + label, tak pernah warna saja.
+const URGENCY_META = {
+  LOW:      { label: "Rendah", cls: "u-low",  icon: "✓", desc: "Kondisi ringan — perawatan mandiri umumnya memadai" },
+  MEDIUM:   { label: "Sedang", cls: "u-med",  icon: "!", desc: "Perlu pengobatan & pemantauan lanjutan" },
+  HIGH:     { label: "Tinggi", cls: "u-high", icon: "▲", desc: "Segera konsultasikan ke dokter" },
+  CRITICAL: { label: "Kritis", cls: "u-crit", icon: "⚠", desc: "Kegawatdaruratan — penanganan segera diperlukan" },
+};
+const URGENCY_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+const PROB_META = { Rendah: { n: 1, cls: "u-low" }, Sedang: { n: 2, cls: "u-med" }, Tinggi: { n: 3, cls: "u-crit" } };
+
+// Ring keyakinan AI — ring membawa warna, angkanya memakai tinta teks
+function confRing(score) {
+  const pct = Math.round(score * 100);
+  const r = 30, circ = 2 * Math.PI * r;
+  return `
+    <div class="conf">
+      <div class="conf-ring" role="img" aria-label="Keyakinan AI ${pct} persen">
+        <svg viewBox="0 0 72 72">
+          <circle class="conf-track" cx="36" cy="36" r="${r}"/>
+          <circle class="conf-fill" cx="36" cy="36" r="${r}"
+            stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${(circ * (1 - score)).toFixed(2)}"/>
+        </svg>
+        <div class="conf-num">${pct}<span>%</span></div>
+      </div>
+      <div class="conf-cap">Keyakinan AI</div>
+    </div>`;
+}
+
+// Meter urgensi 4 segmen — terisi s.d. tingkat aktif dgn warna tingkat tsb
+function urgencyScale(level) {
+  const idx = URGENCY_ORDER.indexOf(level);
+  return `
+    <div class="uscale" role="img" aria-label="Tingkat urgensi ${URGENCY_META[level].label}, skala ${idx + 1} dari 4">
+      ${URGENCY_ORDER.map((k, i) => `
+        <div class="uscale-step ${i <= idx ? "on" : ""}${i === idx ? " now" : ""}">
+          <div class="uscale-bar"></div>
+          <div class="uscale-label">${URGENCY_META[k].label}</div>
+        </div>`).join("")}
+    </div>`;
+}
+
+// Indikator probabilitas 3 titik (Rendah ● / Sedang ●● / Tinggi ●●●)
+function probDots(p) {
+  const m = PROB_META[p] || { n: 0, cls: "" };
+  return `<span class="prob ${m.cls}" title="Probabilitas ${esc(p)}">
+    ${[1, 2, 3].map((i) => `<i class="${i <= m.n ? "on" : ""}"></i>`).join("")}<b>${esc(p)}</b></span>`;
+}
+
 // kartu hasil triase — dipakai pasien, nakes, dan arsip admin
 function recordCard(r) {
   const d = r.diagnosis;
@@ -209,50 +472,76 @@ function recordCard(r) {
   const ca = d.clinical_analysis;
   const ep = d.emergency_care_protocol;
   const rec = d.recommendations;
+  const um = URGENCY_META[t.urgency_level] || URGENCY_META.LOW;
 
   return `
-    <div class="card">
-      <div class="card-title">Hasil Triase · ${fmtDate(r.createdAt)}</div>
-      <div class="ai-box ${t.is_emergency ? "kritis" : ""}">
-        ${urgencyBadge(t.urgency_level)}
-        ${actionBadge(t.primary_action_category)}
-        <span class="badge badge-neutral">Confidence ${confPct(t.confidence_score)}</span>
-        <p class="ai-reasoning">${esc(ca.synthesis_summary)}</p>
-
-        ${ca.possible_conditions?.length ? `
-        <div class="instruction-history" style="margin-bottom:1rem">
-          ${ca.possible_conditions.map((c) => `
-            <div class="instruction-bubble">
-              <div class="who">${esc(c.condition_name)} · ${probBadge(c.probability)}</div>
-              <div>${esc(c.rationale)}</div>
-            </div>`).join("")}
-        </div>` : ""}
-
-        ${ca.danger_signs_present?.length ? `
-        <p style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-faint);margin-bottom:0.5rem">Tanda Bahaya</p>
-        <div class="badges" style="justify-content:flex-start;margin-bottom:1rem">
-          ${ca.danger_signs_present.map((x) => `<span class="badge badge-kritis">${esc(x)}</span>`).join("")}
-        </div>` : ""}
-
-        <ul class="ai-recs">${(rec.patient_action_plan || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    <div class="card rc ${um.cls}">
+      <div class="rc-top">
+        <div>
+          <div class="card-title" style="margin-bottom:0.35rem">Hasil Triase</div>
+          <div class="rc-date">${fmtDate(r.createdAt)}${r.puskesmas ? ` · ${esc(r.puskesmas)}` : ""}</div>
+        </div>
+        ${confRing(t.confidence_score)}
       </div>
 
-      ${ep.requires_immediate_hospital ? `
-      <div class="ai-box kritis" style="margin-top:1.2rem">
-        <span class="badge badge-kritis">Golden Hour: ${esc(ep.golden_hour_timeframe)}</span>
-        <p style="font-weight:700;margin:0.7rem 0 0.4rem">Pertolongan Pertama</p>
-        <ul class="ai-recs">${ep.immediate_first_aid_instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-        <p style="font-weight:700;margin:0.9rem 0 0.4rem">Yang TIDAK Boleh Dilakukan</p>
-        <ul class="ai-recs">${ep.what_NOT_to_do.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      <div class="rc-status">
+        <div class="rc-status-icon">${um.icon}</div>
+        <div>
+          <div class="rc-status-level">${um.label}</div>
+          <div class="rc-status-desc">${um.desc}</div>
+        </div>
+        <div class="rc-action">${actionBadge(t.primary_action_category)}</div>
+      </div>
+
+      ${urgencyScale(t.urgency_level)}
+
+      <p class="rc-summary">${esc(ca.synthesis_summary)}</p>
+
+      ${ca.possible_conditions?.length ? `
+      <div class="rc-sec">Kemungkinan Kondisi</div>
+      <div class="cond-list">
+        ${ca.possible_conditions.map((c) => `
+          <div class="cond">
+            <div class="cond-head">
+              <div class="cond-name">${esc(c.condition_name)}</div>
+              ${probDots(c.probability)}
+            </div>
+            <div class="cond-note">${esc(c.rationale)}</div>
+          </div>`).join("")}
       </div>` : ""}
 
-      <div class="detail-grid" style="margin-top:1.2rem">
-        <div class="detail-field"><div class="k">Saran Obat Bebas</div><div class="v" style="font-weight:500;font-size:0.92rem">${esc(rec.safe_otc_medication_advice)}</div></div>
-        <div class="detail-field"><div class="k">Rujukan</div><div class="v" style="font-weight:500;font-size:0.92rem">${esc(rec.doctor_referral_details.specialist_needed)} — ${esc(rec.doctor_referral_details.examination_needed)}</div></div>
-      </div>
+      ${ca.danger_signs_present?.length ? `
+      <div class="rc-sec">Tanda Bahaya Terdeteksi</div>
+      <div class="danger-chips">
+        ${ca.danger_signs_present.map((x) => `<span class="danger-chip">⚠ ${esc(x)}</span>`).join("")}
+      </div>` : ""}
 
-      <p style="margin-top:1rem;color:var(--text-faint);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.1em">
-        ${esc(r.puskesmas || "")}</p>
+      ${rec.patient_action_plan?.length ? `
+      <div class="rc-sec">Rencana Tindakan</div>
+      <ol class="plan">${rec.patient_action_plan.map((x) => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
+
+      ${ep.requires_immediate_hospital ? `
+      <div class="rc-emg">
+        <div class="rc-emg-head">
+          <div class="rc-emg-title">⚠ Protokol Kegawatdaruratan</div>
+          <span class="golden-chip">⏱ Golden Hour: ${esc(ep.golden_hour_timeframe)}</span>
+        </div>
+        <div class="rc-emg-cols">
+          <div>
+            <div class="rc-emg-sub">Pertolongan Pertama</div>
+            <ul class="emg-list do">${ep.immediate_first_aid_instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+          </div>
+          <div>
+            <div class="rc-emg-sub">Jangan Dilakukan</div>
+            <ul class="emg-list dont">${ep.what_NOT_to_do.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+          </div>
+        </div>
+      </div>` : ""}
+
+      <div class="rc-meta">
+        <div class="detail-field"><div class="k">Saran Obat Bebas</div><div class="v">${esc(rec.safe_otc_medication_advice)}</div></div>
+        <div class="detail-field"><div class="k">Rujukan</div><div class="v">${esc(rec.doctor_referral_details.specialist_needed)} — ${esc(rec.doctor_referral_details.examination_needed)}</div></div>
+      </div>
     </div>`;
 }
 
@@ -321,46 +610,98 @@ async function renderNakesDashboard() {
   const pName = (id) => patients.find((p) => p.id === id)?.name || id;
 
   $app.innerHTML = `
-    <div class="page-header">
-      <div class="eyebrow">${esc(u.puskesmas)} · ${esc(u.name)}</div>
-      <h1 class="page-title">Dashboard <span class="accent">Nakes</span></h1>
-      <p class="page-sub">Ringkasan aktivitas triase kegawatdaruratan mata Anda.
-      Mulai triase baru untuk menganalisis foto mata pasien dengan Ophthalmo-AI.</p>
+    <!-- Top Stats Row -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 3rem; margin-top: 2rem;">
+      <div style="background: #fff; padding: 2.5rem 1rem; text-align: center; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 3.5rem; font-weight: 700; color: #0052ff; margin-bottom: 0.5rem; line-height: 1;">${s.todayScreenings}</div>
+        <div style="font-size: 0.7rem; font-weight: 700; color: #777; text-transform: uppercase; letter-spacing: 0.05em;">Triase Hari Ini</div>
+      </div>
+      <div style="background: #fff; padding: 2.5rem 1rem; text-align: center; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 3.5rem; font-weight: 700; color: #111; margin-bottom: 0.5rem; line-height: 1;">${myRecords.length}</div>
+        <div style="font-size: 0.7rem; font-weight: 700; color: #777; text-transform: uppercase; letter-spacing: 0.05em;">Total Triase Saya</div>
+      </div>
+      <div style="background: #fff; padding: 2.5rem 1rem; text-align: center; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 3.5rem; font-weight: 700; color: #111; margin-bottom: 0.5rem; line-height: 1;">${s.totalPatients}</div>
+        <div style="font-size: 0.7rem; font-weight: 700; color: #777; text-transform: uppercase; letter-spacing: 0.05em;">Pasien Terdaftar</div>
+      </div>
+      <div style="background: #fff; padding: 2.5rem 1rem; text-align: center; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 3.5rem; font-weight: 700; color: #e53935; margin-bottom: 0.5rem; line-height: 1;">${myRecords.filter((r) => r.diagnosis.triage_assessment.is_emergency).length}</div>
+        <div style="font-size: 0.7rem; font-weight: 700; color: #777; text-transform: uppercase; letter-spacing: 0.05em;">Kegawatdaruratan</div>
+      </div>
     </div>
 
-    <div class="stats-row">
-      <div class="stat"><div class="stat-value accent">${s.todayScreenings}</div><div class="stat-label">Triase Hari Ini</div></div>
-      <div class="stat"><div class="stat-value">${myRecords.length}</div><div class="stat-label">Total Triase Saya</div></div>
-      <div class="stat"><div class="stat-value">${s.totalPatients}</div><div class="stat-label">Pasien Terdaftar</div></div>
-      <div class="stat"><div class="stat-value danger">${myRecords.filter((r) => r.diagnosis.triage_assessment.is_emergency).length}</div><div class="stat-label">Kegawatdaruratan</div></div>
-    </div>
+    ${(() => {
+      // Hitung data mingguan (7 hari terakhir)
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const weeklyData = Array.from({length: 7}).map((_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (6 - i));
+        const dayStr = d.toLocaleDateString("id-ID", {weekday: 'short'});
+        return { date: d, label: dayStr, count: 0 };
+      });
 
-    <div class="split">
-    <div>
-      <div class="card">
-        <div class="card-title">Triase Terakhir</div>
+      myRecords.forEach(r => {
+        const rDate = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+        if (isNaN(rDate)) return;
+        rDate.setHours(0,0,0,0);
+        const diffTime = today.getTime() - rDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if(diffDays >= 0 && diffDays <= 6) {
+           weeklyData[6 - diffDays].count++;
+        }
+      });
+
+      const maxCount = Math.max(...weeklyData.map(d => d.count), 5); // base scale at least 5
+
+      return `
+        <div style="background: #fff; margin-bottom: 3rem; border-radius: 8px; border: 1px solid #e0e0e0; padding: 2.5rem; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+          <div style="font-size: 1.15rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3rem;">Aktivitas Triase Mingguan</div>
+          
+          <div style="position: relative; height: 250px; display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 2.5rem; border-bottom: 1px solid #eaeaea;">
+            <!-- Grid lines -->
+            <div style="position: absolute; top: 33%; left: 0; right: 0; height: 1px; background: #f5f5f5; z-index: 0;"></div>
+            <div style="position: absolute; top: 66%; left: 0; right: 0; height: 1px; background: #f5f5f5; z-index: 0;"></div>
+
+            ${weeklyData.map(d => {
+              const heightPct = (d.count / maxCount) * 100;
+              return `
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; z-index: 1;">
+                  <div style="font-size: 0.95rem; color: #111; font-weight: 700; margin-bottom: 0.8rem;">${d.count}</div>
+                  <div style="width: 100%; max-width: 48px; background: ${d.count > 0 ? '#0052ff' : 'transparent'}; border-radius: 8px 8px 0 0; height: ${Math.max(heightPct, 0)}%; transition: height 0.5s ease;"></div>
+                  <div style="position: absolute; bottom: -2.5rem; font-size: 0.75rem; color: #777; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em;">${d.label}</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    })()}
+
+    <!-- Bottom Features Kept -->
+    <div style="display: flex; gap: 2rem; margin-top: 4rem; margin-bottom: 4rem; flex-wrap: wrap;">
+      <div style="flex: 1.5; min-width: 300px; background: #fff; padding: 2.5rem; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
+        <div style="font-size: 1.15rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2rem;">Triase Terakhir</div>
         <div class="patient-list">
           ${myRecords.slice(0, 8).map((r) => `
-            <a class="patient-item ${r.diagnosis.triage_assessment.is_emergency ? "kritis" : ""}" href="#/nakes/pasien/${r.patientId}">
+            <a class="patient-item ${r.diagnosis.triage_assessment.is_emergency ? "kritis" : ""}" href="#/nakes/pasien/${r.patientId}" style="border: 1px solid #eaeaea; margin-bottom: 1rem; border-radius: 6px; padding: 1.2rem;">
               <div class="patient-info">
-                <div class="patient-name">${esc(pName(r.patientId))}</div>
-                <div class="patient-meta">${fmtDate(r.createdAt)} · Confidence ${confPct(r.diagnosis.triage_assessment.confidence_score)}</div>
+                <div class="patient-name" style="color: #222; font-weight: 600;">${esc(pName(r.patientId))}</div>
+                <div class="patient-meta" style="color: #888;">${fmtDate(r.createdAt)} · Confidence ${confPct(r.diagnosis.triage_assessment.confidence_score)}</div>
               </div>
               <div class="badges">${urgencyBadge(r.diagnosis.triage_assessment.urgency_level)}</div>
-            </a>`).join("") || `<div class="empty-state">Belum ada triase. Mulai dari "Triase Baru".</div>`}
+            </a>`).join("") || `<div style="padding: 3rem; text-align: center; color: #888; font-weight: 600;">Belum ada riwayat triase.</div>`}
         </div>
       </div>
-    </div>
-    <div>
-      <div class="card card-dark">
-        <div class="card-title">Aksi Cepat</div>
-        <div class="detail-grid">
-          <div class="detail-field"><div class="k">Triase</div><div class="v"><a href="#/nakes/triase" style="color:#fff">＋ Mulai Baru →</a></div></div>
-          <div class="detail-field"><div class="k">Rekam Medis</div><div class="v"><a href="#/nakes/pasien" style="color:#fff">Lihat Semua →</a></div></div>
-          <div class="detail-field"><div class="k">Sistem</div><div class="v">Ophthalmo-AI CDSS</div></div>
+      
+      <div style="flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 1.5rem;">
+        <div style="background: #fff; padding: 2.5rem; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 1.5rem; flex: 1;">
+          <div style="font-size: 1.15rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem;">Aksi Cepat</div>
+          <a href="#/nakes/triase" style="background: #0052ff; color: #fff; padding: 1.2rem; border-radius: 8px; font-weight: 600; text-decoration: none; text-align: center; display: block; font-size: 1.05rem;">+ Mulai Triase Baru</a>
+          <a href="#/nakes/pasien" style="background: #fcfcfc; color: #333; padding: 1.2rem; border-radius: 8px; font-weight: 600; text-decoration: none; text-align: center; display: block; font-size: 1.05rem; border: 1px solid #e0e0e0;">Lihat Seluruh Rekam Medis</a>
+          <div style="text-align: center; font-size: 0.75rem; color: #aaa; margin-top: auto; padding-top: 2rem;">Ophthalmo-AI CDSS System</div>
         </div>
       </div>
-    </div>
     </div>
   `;
 }
@@ -646,11 +987,19 @@ async function renderPasienList() {
       p.name.toLowerCase().includes(kw) || p.nik.includes(kw));
     document.getElementById("plist").innerHTML = list.map((p) => {
       const r = latest(p.id);
+      const isSelesai = r && r.status === "Selesai";
       return `
       <a class="patient-item ${r && r.diagnosis.triage_assessment.is_emergency ? "kritis" : ""}" href="#/nakes/pasien/${p.id}">
         <div class="patient-info">
           <div class="patient-name">${esc(p.name)}</div>
           <div class="patient-meta">NIK …${esc(p.nik.slice(-6))} · ${esc(p.age)} th ${p.historyDiabetes ? "· Riwayat DM" : ""}</div>
+          ${r ? `<div style="margin-top:0.5rem; font-size:0.8rem; display:flex; gap:0.5rem; align-items:center;">
+            Status: 
+            <select class="status-select" data-rid="${r.id}" style="padding:0.2rem 0.5rem; border-radius:4px; border:1px solid #ccc;" onclick="event.preventDefault(); event.stopPropagation();">
+              <option value="Menunggu" ${!isSelesai ? "selected" : ""}>🔴 Menunggu Tindakan</option>
+              <option value="Selesai" ${isSelesai ? "selected" : ""}>🟢 Sudah Ditangani</option>
+            </select>
+          </div>` : ""}
         </div>
         <div class="badges">${r ? urgencyBadge(r.diagnosis.triage_assessment.urgency_level) : `<span class="badge badge-neutral">Belum ditriase</span>`}</div>
       </a>`;
@@ -658,6 +1007,25 @@ async function renderPasienList() {
   };
   renderList();
   document.getElementById("search").addEventListener("input", (e) => renderList(e.target.value.toLowerCase()));
+  
+  // Event delegation untuk dropdown status
+  document.getElementById("plist").addEventListener("change", async (e) => {
+    if (e.target.classList.contains("status-select")) {
+      e.preventDefault();
+      e.stopPropagation();
+      const rid = e.target.getAttribute("data-rid");
+      const newStatus = e.target.value;
+      try {
+        await store.updateRecordStatus(rid, newStatus);
+        toast(`Status berhasil diubah menjadi: ${newStatus}`);
+        // Perbarui data records di memory
+        const r = records.find(x => x.id === rid);
+        if (r) r.status = newStatus;
+      } catch (err) {
+        toast("Gagal mengubah status: " + err.message);
+      }
+    }
+  });
 }
 
 async function renderPasienDetail(pid) {
@@ -673,14 +1041,39 @@ async function renderPasienDetail(pid) {
     </div>
     <div class="split">
     <div>
-      ${records.map(recordCard).join("") || `<div class="empty-state">Belum ada hasil triase untuk pasien ini.</div>`}
+      ${records.length ? `
+      <div class="tl">
+        ${records.map((r) => `
+          <div class="tl-item ${(URGENCY_META[r.diagnosis.triage_assessment.urgency_level] || URGENCY_META.LOW).cls}">
+            ${recordCard(r)}
+            <div class="card" style="margin-top: 1rem; border: 1px solid #e0e0e0; box-shadow: none;">
+              <div class="card-title" style="font-size: 0.95rem; margin-bottom:0.5rem;">Tindakan Medis / Catatan Nakes</div>
+              ${r.status === "Selesai" 
+                ? `<div style="background:#fcfcfc; padding: 1rem; border-radius: 6px; border: 1px solid #eaeaea; font-size:0.9rem; color:#444;">${esc(r.nakesNotes || "Tidak ada catatan khusus.")}</div>
+                   <div style="margin-top:0.5rem; font-size:0.8rem; color:#0052ff; cursor:pointer; font-weight:600;" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">✏️ Edit Catatan</div>
+                   <form class="notes-form" data-rid="${r.id}" style="display:none; margin-top:0.8rem;">
+                     <textarea class="nakes-notes" placeholder="Ketik tindakan yang diberikan..." style="width:100%; min-height:80px; padding:0.8rem; border:1px solid #ccc; border-radius:6px; margin-bottom:0.8rem; font-family:inherit;">${esc(r.nakesNotes || "")}</textarea>
+                     <div style="display:flex; gap:0.5rem;">
+                       <button type="submit" class="btn btn-accent" style="padding: 0.4rem 1rem; font-size:0.85rem;">Simpan Perubahan</button>
+                       <button type="button" class="btn" style="padding: 0.4rem 1rem; font-size:0.85rem; background:#eee; color:#333;" onclick="this.parentElement.parentElement.style.display='none'; this.parentElement.parentElement.previousElementSibling.style.display='block';">Batal</button>
+                     </div>
+                   </form>` 
+                : `<form class="notes-form" data-rid="${r.id}" style="margin-top: 0.5rem;">
+                     <textarea class="nakes-notes" placeholder="Ketik tindakan medis darurat yang diberikan..." style="width:100%; min-height:80px; padding:0.8rem; border:1px solid #ccc; border-radius:6px; margin-bottom:0.8rem; font-family:inherit;">${esc(r.nakesNotes || "")}</textarea>
+                     <button type="submit" class="btn btn-accent" style="padding: 0.5rem 1.2rem; font-size:0.9rem;">✓ Simpan & Tandai Selesai</button>
+                   </form>`}
+            </div>
+          </div>`).join("")}
+      </div>` : `<div class="empty-state">Belum ada hasil triase untuk pasien ini.</div>`}
     </div>
     <div>
       <div class="card card-dark">
         <div class="card-title">Profil Pasien</div>
         <div class="detail-grid">
           <div class="detail-field"><div class="k">Total Triase</div><div class="v">${records.length}×</div></div>
-          <div class="detail-field"><div class="k">Terakhir</div><div class="v">${records[0] ? esc(URGENCY[records[0].diagnosis.triage_assessment.urgency_level].label) : "—"}</div></div>
+          <div class="detail-field"><div class="k">Urgensi Terakhir</div><div class="v">${records[0]
+            ? `<span class="udot ${(URGENCY_META[records[0].diagnosis.triage_assessment.urgency_level] || URGENCY_META.LOW).cls}"></span>${esc(URGENCY[records[0].diagnosis.triage_assessment.urgency_level].label)}`
+            : "—"}</div></div>
           <div class="detail-field"><div class="k">Kode Akses</div><div class="v">${p.accessCode ? esc(p.accessCode) : "Belum dibuat"}</div></div>
           <div class="detail-field"><div class="k">Terdaftar</div><div class="v">${fmtDate(p.createdAt)}</div></div>
         </div>
@@ -691,7 +1084,30 @@ async function renderPasienDetail(pid) {
       </div>
     </div>
     </div>
+    </div>
   `;
+
+  document.querySelectorAll(".notes-form").forEach(f => {
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const rid = f.getAttribute("data-rid");
+      const notes = f.querySelector(".nakes-notes").value.trim();
+      const btn = f.querySelector("button[type='submit']");
+      const oldText = btn.textContent;
+      btn.textContent = "⏳ Menyimpan...";
+      btn.disabled = true;
+      try {
+        // Status otomatis "Selesai" karena sudah ditangani/diberi catatan
+        await store.updateRecordStatus(rid, "Selesai", notes);
+        toast("Tindakan medis berhasil disimpan dan ditandai selesai.");
+        renderPasienDetail(pid); // Refresh tampilan
+      } catch (err) {
+        toast("Gagal menyimpan: " + err.message);
+        btn.textContent = oldText;
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 // ============================================================
@@ -711,13 +1127,56 @@ async function renderAdminDashboard() {
       <p class="page-sub">Pantauan seluruh aktivitas triase, pengguna, dan integritas data lintas Puskesmas.</p>
     </div>
 
-    <div class="stats-row">
+    <div class="stats-row" style="margin-bottom: 2rem;">
       <div class="stat"><div class="stat-value">${s.totalScreenings}</div><div class="stat-label">Total Triase</div></div>
       <div class="stat"><div class="stat-value accent">${users.filter((u) => u.role === "nakes" && u.active).length}</div><div class="stat-label">Nakes Aktif</div></div>
       <div class="stat"><div class="stat-value">${s.totalPatients}</div><div class="stat-label">Pasien Terdaftar</div></div>
       <div class="stat"><div class="stat-value warn">${audit.length}</div><div class="stat-label">Entri Audit</div></div>
       <div class="stat"><div class="stat-value danger">${s.emergencies}</div><div class="stat-label">Kegawatdaruratan</div></div>
     </div>
+
+    ${(() => {
+      // Hitung data mingguan Global (7 hari terakhir)
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const weeklyData = Array.from({length: 7}).map((_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (6 - i));
+        const dayStr = d.toLocaleDateString("id-ID", {weekday: 'short'});
+        return { date: d, label: dayStr, count: 0 };
+      });
+
+      records.forEach(r => {
+        const rDate = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+        if (isNaN(rDate)) return;
+        rDate.setHours(0,0,0,0);
+        const diffTime = today.getTime() - rDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if(diffDays >= 0 && diffDays <= 6) {
+           weeklyData[6 - diffDays].count++;
+        }
+      });
+
+      const maxCount = Math.max(...weeklyData.map(d => d.count), 5); // base scale at least 5
+
+      return `
+        <div class="card" style="margin-bottom: 2rem; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.03);">
+          <div class="card-title" style="margin-bottom: 1.5rem; font-size: 1.1rem;">Aktivitas Triase Mingguan (Global)</div>
+          <div style="display: flex; align-items: flex-end; justify-content: space-between; height: 160px; padding-top: 1rem; gap: 1rem;">
+            ${weeklyData.map(d => {
+              const heightPct = (d.count / maxCount) * 100;
+              return `
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 0.5rem; height: 100%;">
+                  <div style="font-size: 0.8rem; color: #555; font-weight: 700;">${d.count}</div>
+                  <div style="width: 100%; max-width: 50px; background: ${d.count > 0 ? 'var(--accent)' : '#eee'}; border-radius: 6px 6px 0 0; height: ${Math.max(heightPct, 3)}%; transition: height 0.5s ease;"></div>
+                  <div style="font-size: 0.75rem; color: #aaa; text-transform: uppercase; font-weight: 600;">${d.label}</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    })()}
 
     <div class="split">
     <div>

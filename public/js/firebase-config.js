@@ -1,20 +1,18 @@
 // ============================================================
-// KONFIGURASI FIREBASE — GANTI DENGAN MILIK ANDA
-// Firebase Console → Project Settings → Your apps → Web app
+// KONFIGURASI FIREBASE
 // ============================================================
 export const firebaseConfig = {
-  apiKey: "GANTI_DENGAN_API_KEY_ANDA",
-  authDomain: "project-anda.firebaseapp.com",
-  projectId: "project-anda",
-  storageBucket: "project-anda.appspot.com",
-  messagingSenderId: "000000000000",
-  appId: "1:000000000000:web:xxxxxxxxxxxxxxxx",
+  apiKey: "AIzaSyDjY5aj3Z1f1zY_BQ10UHlKFXY5JUA5qeE",
+  authDomain: "hackathon-b1653.firebaseapp.com",
+  projectId: "hackathon-b1653",
+  storageBucket: "hackathon-b1653.firebasestorage.app",
+  messagingSenderId: "665752139290",
+  appId: "1:665752139290:web:c0275d8ac9a0c5be5bc3a3",
 };
 
 // ============================================================
 // URL BACKEND EXPRESS SERVER
-// Ganti dengan URL Railway/Render Anda setelah deploy.
 // Untuk development lokal: "http://localhost:3000"
-// Contoh Railway: "https://ophthalmo-ai-server-production.up.railway.app"
+// Setelah deploy Railway: ganti dengan URL Railway Anda
 // ============================================================
-export const BACKEND_URL = "GANTI_DENGAN_URL_SERVER_ANDA";
+export const BACKEND_URL = "http://localhost:3000";
