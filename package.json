@@ -1,0 +1,15 @@
+{
+  "name": "ophthalmo-ai",
+  "version": "1.0.0",
+  "description": "Sistem Pakar Triase Kegawatdaruratan Mata & Rekam Medis Digital berbasis Clinical Decision Support System (CDSS), dipakai oleh Puskesmas untuk mendeteksi kondisi mata gawat darurat dari foto pasien + gejala klinis, menggunakan **ML Vision** (ekstraksi fitur visual) yang bekerja berdampingan dengan **Ophthalmo-AI** (Claude API — penalaran klinis final).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "firebase-tools": "^13.11.0"
+  }
+}

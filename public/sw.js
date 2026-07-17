@@ -1,7 +1,7 @@
 /* Service Worker — app shell cache-first agar PWA tetap terbuka tanpa sinyal.
    Mode demo sepenuhnya offline; mode Firebase memakai persistence sendiri. */
 
-const CACHE_NAME = "ophthalmo-ai-shell-v9";
+const CACHE_NAME = "ophthalmo-ai-shell-v10";
 
 const SHELL_ASSETS = [
   "./",

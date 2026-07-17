@@ -49,8 +49,14 @@ function fmtDate(x) {
   return d && !isNaN(d) ? d.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "—";
 }
 
+const getAction = (a) => {
+  if (a === "HOME_CARE") return ACTIONS.SELF_CARE;
+  if (a === "CLINIC_VISIT") return ACTIONS.DOCTOR_CONSULT;
+  return ACTIONS[a] || ACTIONS.SELF_CARE;
+};
+
 const urgencyBadge = (u) => `<span class="badge badge-${URGENCY[u].badge}">${esc(URGENCY[u].label)}</span>`;
-const actionBadge = (a) => `<span class="badge badge-${ACTIONS[a].badge}">${esc(ACTIONS[a].label)}</span>`;
+const actionBadge = (a) => `<span class="badge badge-${getAction(a).badge}">${esc(getAction(a).label)}</span>`;
 const confPct = (c) => `${Math.round(c * 100)}%`;
 
 // ---------- indikator koneksi ----------
@@ -71,11 +77,18 @@ function renderChrome() {
   if (u) {
     // Logged in: right cluster = CTA + avatar
     statusCluster.innerHTML = `
-      <a href="#/nakes/triase" style="background: var(--accent); color: #fff; padding: 0.42rem 1rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700; text-decoration: none; text-transform: uppercase; letter-spacing: 0.07em; display: flex; align-items: center; gap: 0.4rem; white-space: nowrap;">
-        ＋ New Triage
-      </a>
-      <a href="#logout" data-logout="1" style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(0,0,0,0.12); flex-shrink:0;" title="Logout — ${esc(u.name)}">
-        <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=1438ff&color=fff&bold=true&size=64" style="width:100%; height:100%; object-fit:cover;">
+      <button style="background: #0033a0; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Unduh PDF
+      </button>
+      <button style="background: none; border: none; color: #555; cursor: pointer; padding: 0.4rem; display: flex;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      </button>
+      <button style="background: none; border: none; color: #555; cursor: pointer; padding: 0.4rem; display: flex;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+      <a href="#logout" data-logout="1" style="width: 34px; height: 34px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; border: 1px solid #e5e7eb; flex-shrink:0; margin-left: 0.5rem" title="Logout — ${esc(u.name)}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" style="margin-top:2px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
       </a>
     `;
   } else {
@@ -404,7 +417,7 @@ async function renderPasienPortal() {
             <div class="detail-field"><div class="k">Riwayat Skrining</div><div class="v">${records.length}×</div></div>
           </div>
         </div>
-        ${records.map(recordCard).join("") || `<div class="empty-state">Belum ada hasil triase.</div>`}
+        ${records.map(r => clinicalDashboard(r, patient)).join("") || `<div class="empty-state">Belum ada hasil triase.</div>`}
       `;
       document.getElementById("access-result").scrollIntoView({ behavior: "smooth" });
       toast("✓ Verifikasi berhasil.");
@@ -426,6 +439,23 @@ const URGENCY_META = {
 };
 const URGENCY_ORDER = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const PROB_META = { Rendah: { n: 1, cls: "u-low" }, Sedang: { n: 2, cls: "u-med" }, Tinggi: { n: 3, cls: "u-crit" } };
+
+// ---------- meta modul DR Specialist (skala ICDR 0-4) ----------
+const DR_META = {
+  0: { title: "Tidak Ada Retinopati Diabetik",    cls: "good",   card: "",       icon: "✓", sub: "ICDR Grade 0 — Profil risiko minimal terdeteksi.",              chips: ["Risiko Sangat Rendah", "Rujukan Tidak Diperlukan"] },
+  1: { title: "Retinopati Diabetik Ringan",       cls: "good",   card: "",       icon: "!", sub: "ICDR Grade 1 — Mild NPDR terdeteksi pada citra fundus.",        chips: ["Risiko Rendah", "Kontrol Ulang 6–12 Bulan"] },
+  2: { title: "Retinopati Diabetik Sedang",       cls: "warn",   card: "warn",   icon: "▲", sub: "ICDR Grade 2 — Moderate NPDR terdeteksi pada citra fundus.",    chips: ["Risiko Sedang", "Rujukan ke Sp.M"] },
+  3: { title: "Retinopati Diabetik Berat",        cls: "danger", card: "danger", icon: "⚠", sub: "ICDR Grade 3 — Severe NPDR terdeteksi pada citra fundus.",      chips: ["Risiko Tinggi", "Rujukan Segera"] },
+  4: { title: "Retinopati Diabetik Proliferatif", cls: "danger", card: "danger", icon: "⚠", sub: "ICDR Grade 4 — Proliferative DR terdeteksi pada citra fundus.", chips: ["Risiko Sangat Tinggi", "Rujukan Darurat < 24 Jam"] },
+};
+const ICDR_STEPS = ["Tidak Ada DR", "Ringan", "Sedang", "Berat", "PDR"];
+const EYE_LABEL = { Kanan: "Kanan (OD)", Kiri: "Kiri (OS)", Keduanya: "Bilateral (ODS)" };
+const VISION_SOURCE_LABEL = {
+  "ml-endpoint": "Model CV Custom",
+  "gemini-vision-real": "Gemini Vision",
+  "mock-fallback": "Mock Vision",
+  "fundus-dr-model": "DR Specialist",
+};
 
 // Ring keyakinan AI — ring membawa warna, angkanya memakai tinta teks
 function confRing(score) {
@@ -465,7 +495,321 @@ function probDots(p) {
     ${[1, 2, 3].map((i) => `<i class="${i <= m.n ? "on" : ""}"></i>`).join("")}<b>${esc(p)}</b></span>`;
 }
 
-// kartu hasil triase — dipakai pasien, nakes, dan arsip admin
+// kartu hasil triase ekstensif — dipakai pasien, nakes, dan arsip admin
+function clinicalDashboard(r, p) {
+  const d = r.diagnosis || {};
+  const isNew = !!d.executive_summary;
+  
+  const exec = d.executive_summary || {};
+  const t = d.triage_assessment || {};
+  const urgencyLevel = exec.urgency_level || t.urgency_level || "LOW";
+  const confVal = Math.round((exec.ai_confidence || t.confidence_score || 0) * 100);
+  
+  const v = r.vision || {};
+  const drGrade = v.dr_grade ?? null;
+  const hasDR = drGrade != null;
+  const drConf = v.dr?.class_probabilities ? Math.max(...Object.values(v.dr.class_probabilities)) : null;
+
+  const lesions = d.retinal_lesion_detection || [];
+  const reasoning = d.ai_clinical_reasoning || [];
+  const differentials = d.differential_diagnosis || [];
+  const risks = d.risk_assessment || { disease_progression: 0, vision_threat: 0, macular_edema: 0, follow_up_compliance: 0 };
+  const imgQuality = d.image_quality_assessment?.metrics || [];
+  const recomms = d.clinical_recommendation || [];
+  const suggestedActions = d.suggested_clinical_actions || (d.recommendations?.patient_action_plan || []);
+  const timeline = d.icdr_timeline || { current_stage_index: drGrade || 0, rationale: "" };
+
+  const age = p?.age ? `${p.age}th` : '-';
+  const sex = p?.gender === 'L' ? 'Laki-laki' : 'Perempuan';
+  const mrn = p?.nik ? p.nik.slice(-6) : 'XXXXXX';
+  const eye = EYE_LABEL[r.symptoms?.mataTerdampak] || null;
+  const imgUrl = r.fundusImageDataUrl || r.imageDataUrl || "";
+  
+  const gradeColor = hasDR ? (drGrade === 0 ? "good" : drGrade <= 2 ? "warn" : "danger") : "good";
+  const dm = hasDR ? (DR_META[drGrade] || DR_META[4]) : null;
+
+  const urgColor = urgencyLevel === "LOW" ? "good" : urgencyLevel === "MEDIUM" ? "warn" : "danger";
+
+  const ringDash = 282.7;
+  const ringOffset = ringDash - (ringDash * (confVal / 100));
+
+  const labels = ["Tidak Ada DR", "Ringan", "Sedang", "Berat", "PDR"];
+  let barsHtml = "";
+  for (let i = 0; i < 5; i++) {
+    const isActive = hasDR && i === timeline.current_stage_index;
+    const isPast = hasDR && i < timeline.current_stage_index;
+    const bg = isActive ? (i === 0 ? "#10b981" : i <= 2 ? "#f59e0b" : "#ef4444") : (isPast ? "#d1d5db" : "#e5e7eb");
+    barsHtml += `<div style="flex:1; background:${bg}; height:8px"></div>`;
+  }
+
+  // Komponen Helper
+  const riskGauge = (label, val, col) => {
+    const dash = 282.7;
+    const off = dash - (dash * (val / 100));
+    return `<div class="risk-gauge">
+      <div style="position:relative; width:64px; height:64px">
+        <svg class="gauge-svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" class="gauge-circle-bg"/><circle cx="50" cy="50" r="45" class="gauge-circle-fill" stroke="${col}" stroke-dasharray="${dash}" stroke-dashoffset="${off}"/></svg>
+        <div class="gauge-text">${val}</div>
+      </div>
+      <div class="gauge-label">${label}</div>
+    </div>`;
+  };
+
+  return `
+    <div class="dashboard-grid">
+      <div class="dash-left">
+        <!-- HEADER PASIEN -->
+        <div class="dash-card" style="padding: 1.8rem">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start">
+            <div>
+              <div class="patient-name" style="font-size:1.4rem; color:#111; letter-spacing:-0.02em">${esc(p?.name || 'Pasien Anonim')}</div>
+              <div class="patient-meta" style="margin-top:0.5rem; display:flex; align-items:center; gap:0.6rem; color:var(--text-dim); font-size:0.85rem">
+                <span style="background:#f3f4f6; border:1px solid #e5e7eb; padding:0.2rem 0.5rem; border-radius:4px; font-weight:600; color:#374151">MRN: ${esc(mrn)}</span>
+                • ${age}, ${sex} • Periksa: ${fmtDate(r.createdAt || new Date())}
+              </div>
+              <div style="margin-top:0.8rem; color:var(--accent); font-weight:600; font-size:0.9rem">Mata: ${eye ? esc(eye) : "Tidak diketahui"}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:0.75rem; font-weight:700; color:var(--text-faint)">Fasilitas:</div>
+              <div style="font-size:0.9rem; font-weight:700; color:#111; margin-top:0.1rem">${esc(r.puskesmas || 'RSUD Kota')}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- EXECUTIVE SUMMARY -->
+        <div class="dash-card" style="padding:2rem; border-left:4px solid ${gradeColor === 'good' ? '#10b981' : gradeColor === 'warn' ? '#f59e0b' : '#ef4444'}">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between">
+            <div style="display:flex; gap:1.2rem; align-items:flex-start">
+              <div style="width:52px; height:52px; border-radius:50%; background:${gradeColor === 'good' ? '#dcfce7' : gradeColor === 'warn' ? '#fef3c7' : '#fee2e2'}; color:${gradeColor === 'good' ? '#166534' : gradeColor === 'warn' ? '#92400e' : '#991b1b'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:1.5rem">
+                ${hasDR ? dm.icon : (URGENCY_META[urgencyLevel] || URGENCY_META.LOW).icon}
+              </div>
+              <div>
+                <div style="font-size:1.35rem; font-weight:700; color:${gradeColor === 'good' ? '#166534' : gradeColor === 'warn' ? '#92400e' : '#991b1b'}; margin-bottom:0.3rem; letter-spacing:-0.01em">
+                  ${isNew ? esc(exec.primary_diagnosis || "Diagnosis Utama") : (hasDR ? dm.title : "Urgensi " + esc(URGENCY[urgencyLevel]?.label || "—"))}
+                </div>
+                <div style="font-size:0.95rem; color:var(--text-dim); margin-bottom:1.2rem">
+                  ${isNew ? esc(exec.icdr_classification || "") : (hasDR ? dm.sub : (URGENCY_META[urgencyLevel] || URGENCY_META.LOW).desc)}
+                </div>
+                <div style="display:flex; gap:0.6rem; flex-wrap:wrap">
+                  <div style="padding:0.35rem 0.7rem; border:1px solid #e5e7eb; background:#f9fafb; border-radius:6px; font-size:0.75rem; font-weight:700; color:var(--text-dim)">Urgensi: ${esc(urgencyLevel)}</div>
+                  <div style="padding:0.35rem 0.7rem; border:1px solid #e5e7eb; background:#f9fafb; border-radius:6px; font-size:0.75rem; font-weight:700; color:var(--text-dim)">Rujukan: ${esc(isNew ? exec.referral_recommendation : (r.diagnosis?.recommendations?.doctor_referral_details?.specialist_needed || "—"))}</div>
+                </div>
+              </div>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; align-items:center">
+              <div style="position:relative; width:86px; height:86px">
+                <svg width="86" height="86" viewBox="0 0 100 100" style="transform:rotate(-90deg)">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="var(--accent)" stroke-width="8" stroke-dasharray="282.7" stroke-dashoffset="${ringOffset}" stroke-linecap="round"/>
+                </svg>
+                <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:1.6rem; font-weight:800; color:var(--accent); letter-spacing:-0.02em">
+                  ${confVal}<span style="font-size:1rem">%</span>
+                </div>
+              </div>
+              <div style="font-size:0.65rem; font-weight:700; color:var(--text-faint); margin-top:0.6rem; text-transform:uppercase; letter-spacing:0.05em">Keyakinan AI</div>
+            </div>
+          </div>
+          
+          ${hasDR ? `
+          <div style="margin-top:2.5rem">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.6rem; font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:0.05em">
+              ${labels.map((l, i) => `<span style="color:${i === timeline.current_stage_index ? (i === 0 ? '#166534' : i <= 2 ? '#92400e' : '#991b1b') : '#6b7280'}; width:20%; text-align:${i===0?'left':i===4?'right':'center'}">${l}</span>`).join("")}
+            </div>
+            <div style="display:flex; height:10px; border-radius:999px; overflow:hidden; gap:2px">
+              ${barsHtml}
+            </div>
+            ${timeline.rationale ? `<div style="margin-top:0.8rem; font-size:0.85rem; color:var(--text-dim)"><b>Alasan Tahap:</b> ${esc(timeline.rationale)}</div>` : ""}
+          </div>` : ""}
+        </div>
+
+        <!-- RISK ASSESSMENT & DIFFERENTIAL DIAGNOSIS -->
+        ${isNew ? `
+        <div class="split-panels" style="margin-top:1.5rem">
+          <div class="dash-card" style="margin-bottom:0; padding:1.8rem">
+            <div style="display:flex; align-items:center; gap:0.6rem; font-size:1.1rem; font-weight:700; color:#111; margin-bottom:1.5rem">
+              <svg width="20" height="20" fill="var(--accent)" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3.5a.5.5 0 0 1-.5-.5v-4A.5.5 0 0 1 8 4z"/></svg>
+              Penilaian Risiko
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem 1rem">
+              ${riskGauge("Perburukan Penyakit", risks.disease_progression, risks.disease_progression > 60 ? "#ef4444" : "#f59e0b")}
+              ${riskGauge("Ancaman Penglihatan", risks.vision_threat, risks.vision_threat > 50 ? "#ef4444" : "#10b981")}
+              ${riskGauge("Risiko Edema Makula", risks.macular_edema, risks.macular_edema > 40 ? "#ef4444" : "#f59e0b")}
+              ${riskGauge("Kepatuhan Kontrol", risks.follow_up_compliance, risks.follow_up_compliance < 50 ? "#ef4444" : "#10b981")}
+            </div>
+          </div>
+          
+          <div class="dash-card" style="margin-bottom:0; padding:1.8rem">
+            <div style="display:flex; align-items:center; gap:0.6rem; font-size:1.1rem; font-weight:700; color:#111; margin-bottom:1.5rem">
+              <svg width="20" height="20" fill="var(--accent)" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z"/></svg>
+              Diagnosis Banding (Differentials)
+            </div>
+            ${differentials.map(df => `
+              <div class="diff-row">
+                <div class="diff-label" title="${esc(df.rationale)}">${esc(df.condition)}</div>
+                <div class="diff-bar-bg"><div class="diff-bar-fill" style="width:${df.probability}%; background:${df.probability > 70 ? '#ef4444' : df.probability > 30 ? '#f59e0b' : '#10b981'}"></div></div>
+                <div class="diff-pct">${df.probability}%</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>` : ""}
+
+        <!-- DETEKSI LESI RETINA (TABEL) -->
+        ${isNew ? `
+        <div class="dash-card" style="margin-top:1.5rem; padding:1.8rem">
+          <div style="display:flex; align-items:center; gap:0.6rem; font-size:1.1rem; font-weight:700; color:#111; margin-bottom:1rem">
+            <svg width="20" height="20" fill="var(--accent)" viewBox="0 0 16 16"><path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z"/><path d="M0 8s3-5.5 8-5.5S16 8 16 8s-3 5.5-8 5.5S0 8 0 8zm8 3.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/></svg>
+            Deteksi Lesi Retina Khusus
+          </div>
+          <table class="lesion-table">
+            <thead>
+              <tr><th>Jenis Lesi</th><th>Status Deteksi</th><th>Severity</th><th>Confidence</th></tr>
+            </thead>
+            <tbody>
+              ${lesions.map(ls => `
+                <tr>
+                  <td style="font-weight:600; color:#111">${esc(ls.lesion_type)}</td>
+                  <td>${ls.detection_status === 'Detected' ? '<span style="color:#b91c1c; font-weight:700">Terdeteksi</span>' : ls.detection_status === 'Suspected' ? '<span style="color:#b45309; font-weight:700">Suspect</span>' : '<span style="color:#047857">Negatif</span>'}</td>
+                  <td><span class="badge-sev ${ls.severity.toLowerCase()}">${esc(ls.severity)}</span></td>
+                  <td>${Math.round(ls.confidence * 100)}%</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>` : ""}
+
+        <!-- AI CLINICAL REASONING -->
+        <div class="dash-card" style="margin-top:1.5rem; padding:1.8rem">
+          <div style="display:flex; align-items:center; gap:0.6rem; font-size:1.1rem; font-weight:700; color:#111; margin-bottom:1.2rem">
+            <svg width="20" height="20" fill="var(--accent)" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M14 3H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zM2 2a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H2z"/><path d="M4 6.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5z"/></svg>
+            Penalaran Klinis AI Transparan
+          </div>
+          <ul class="clinical-list" style="display:flex; flex-direction:column; gap:0.6rem">
+            ${isNew ? reasoning.map(r => `
+              <li>
+                <span style="background:${r.is_present ? '#fee2e2' : '#dcfce7'}; color:${r.is_present ? '#dc2626' : '#059669'}; width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:800; flex-shrink:0">${r.is_present ? '!' : '✓'}</span>
+                <strong>${esc(r.feature)}:</strong> ${esc(r.description)}
+              </li>
+            `).join("") : (r.diagnosis?.clinical_analysis?.danger_signs_present || []).map(x => `<li><span style="background:#fee2e2; color:#dc2626; width:20px; height:20px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:800; flex-shrink:0">!</span> ${esc(x)}</li>`).join("")}
+          </ul>
+        </div>
+        
+        <!-- SARAN TINDAKAN & REKOMENDASI KLINIS -->
+        <div class="split-panels" style="margin-top:1.5rem">
+          <!-- Suggested Clinical Actions Workflow -->
+          <div class="dash-card" style="margin-bottom:0; padding:1.8rem">
+            <div style="display:flex; align-items:center; gap:0.6rem; font-size:1.1rem; font-weight:700; color:#111; margin-bottom:1.2rem">
+              <svg width="20" height="20" fill="var(--accent)" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-1zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-1zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5v-1z"/></svg>
+              Saran Alur Kerja Klinis (Workflow)
+            </div>
+            <ul class="numbered-list" style="display:flex; flex-direction:column; gap:0.6rem">
+              ${suggestedActions.map((a, i) => `<li><div class="num-badge">${i+1}</div>${esc(a)}</li>`).join("") || `<li>Tidak ada rencana tindakan tercatat.</li>`}
+            </ul>
+          </div>
+
+          <!-- Clinical Recommendations (Status) -->
+          <div class="dash-card" style="margin-bottom:0; padding:1.8rem">
+            <div style="display:flex; align-items:center; gap:0.6rem; font-size:1.1rem; font-weight:700; color:#111; margin-bottom:1.2rem">
+              <svg width="20" height="20" fill="var(--accent)" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1 8a7 7 0 1 0 14 0A7 7 0 0 0 1 8zm15 0A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-8.5-4a.5.5 0 0 1 1 0v3.793l2.854 2.853a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1-.146-.353V4z"/></svg>
+              Rekomendasi Berbasis Bukti
+            </div>
+            ${isNew ? recomms.map(rc => `
+              <div style="display:flex; align-items:center; padding:0.75rem 0; border-bottom:1px solid #f3f4f6">
+                <div style="font-weight:600; font-size:0.9rem; color:#374151" title="${esc(rc.evidence_based_rationale)}">${esc(rc.action)}</div>
+                <div class="rec-badge ${rc.status === 'Indicated' ? 'indicated' : rc.status === 'Optional' ? 'optional' : 'not-recommended'}">${esc(rc.status)}</div>
+              </div>
+            `).join("") : `<div class="empty-state" style="padding:1rem; font-size:0.8rem">Rekomendasi khusus belum didukung di versi ini.</div>`}
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-right">
+        <!-- PENAMPIL FUNDUS & XAI -->
+        <div class="dash-card" style="padding:1.5rem">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem">
+            <div style="font-size:1.1rem; font-weight:700; color:#111">Penampil Fundus (Explainable AI)</div>
+            <div class="viewer-toolbar" style="margin-bottom:0">
+              <button class="viewer-btn" title="Zoom In"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+              <button class="viewer-btn" title="Zoom Out"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg></button>
+              <button class="viewer-btn" title="Contrast/Brightness"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg></button>
+              <button class="viewer-btn" title="Pan"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg></button>
+            </div>
+          </div>
+          
+          <div class="fundus-viewer" style="border-radius:12px">
+            ${imgUrl
+              ? `<img src="${imgUrl}" alt="Citra mata pasien" style="border-radius:12px" />`
+              : `<div style="min-height:240px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:0.85rem;text-align:center;padding:1.5rem;line-height:1.6">${hasDR ? "Citra fundus telah dianalisis —<br>file tidak diarsipkan." : "Tidak ada citra tersimpan<br>untuk pemeriksaan ini."}</div>`}
+            <div class="fundus-overlay" style="background:none; text-shadow:0 1px 3px rgba(0,0,0,0.8); font-size:0.85rem">${eye ? esc(eye) : "OD"} • 45°</div>
+          </div>
+          
+          <div class="viewer-tabs" style="gap:0.4rem">
+            <div class="v-tab active" style="border-radius:999px; padding:0.4rem 1rem">Original Image</div>
+            <div class="v-tab" style="border-radius:999px; padding:0.4rem 1rem">AI Heatmap</div>
+            <div class="v-tab" style="border-radius:999px; padding:0.4rem 1rem">Lesion Overlay</div>
+            <div class="v-tab" style="border-radius:999px; padding:0.4rem 1rem">Vessel Seg.</div>
+            <div class="v-tab" style="border-radius:999px; padding:0.4rem 1rem">Macular Marker</div>
+          </div>
+
+          <!-- KUALITAS CITRA -->
+          ${isNew && imgQuality.length > 0 ? `
+          <div style="margin-top:1.5rem; margin-bottom:1.5rem">
+            <div style="font-size:0.75rem; font-weight:700; color:var(--text-faint); margin-bottom:0.8rem; text-transform:uppercase; letter-spacing:0.05em">Image Quality Assessment</div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem 1rem">
+              ${imgQuality.map(mq => `
+                <div style="display:flex; flex-direction:column; font-size:0.75rem">
+                  <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem">
+                    <span style="font-weight:600; color:#374151">${esc(mq.name)}</span>
+                    <span style="color:var(--accent); font-weight:700">${mq.score}/100</span>
+                  </div>
+                  <div style="height:4px; background:#e5e7eb; border-radius:999px; overflow:hidden">
+                    <div style="height:100%; background:${mq.score > 70 ? '#10b981' : mq.score > 40 ? '#f59e0b' : '#ef4444'}; width:${mq.score}%"></div>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+            ${d.image_quality_assessment.affects_confidence ? `<div style="margin-top:0.6rem; font-size:0.7rem; color:#dc2626; font-weight:600">⚠ Kualitas gambar rendah berpotensi memengaruhi keyakinan AI.</div>` : ""}
+          </div>` : ""}
+          
+          <div style="font-size:0.75rem; font-weight:700; color:var(--text-faint); margin:1.5rem 0 0.5rem; text-transform:uppercase; letter-spacing:0.05em">Ophthalmologist Notes</div>
+          <textarea id="dash-notes" class="clinical-notes" style="background:#f9fafb; min-height:100px" placeholder="Tambahkan observasi, koreksi hasil AI, atau finalisasi laporan...">${esc(r.nakesNotes || "")}</textarea>
+
+          <div class="action-grid" style="display:flex; flex-direction:column; gap:0.8rem; margin-top:1.5rem">
+            ${r.recordId ? `<button type="button" id="dash-notes-save" class="btn btn-full" style="background:#0033a0; color:#fff; font-size:1.05rem; border:none; text-transform:none; font-weight:600; border-radius:8px">▷ Send to EMR</button>` : ""}
+            <div style="display:flex; gap:0.8rem">
+              <button type="button" class="btn btn-full" style="flex:1; background:transparent; border:1px solid #0033a0; color:#0033a0; text-transform:none; font-weight:600; border-radius:8px">📥 Export DICOM</button>
+              <button type="button" class="btn btn-full" style="flex:1; background:transparent; border:1px solid #0033a0; color:#0033a0; text-transform:none; font-weight:600; border-radius:8px" onclick="window.print()">🖨 Download PDF Report</button>
+            </div>
+            <button type="button" class="btn btn-full" style="background:transparent; border:1px solid #0033a0; color:#0033a0; text-transform:none; font-weight:600; border-radius:8px">↺ Compare Previous Exam</button>
+          </div>
+        </div>
+
+        ${r.accessCode ? `
+        <div class="card card-dark">
+          <div class="card-title">Kode Akses Pasien — Berikan kpd Pasien</div>
+          <div class="code-display">${esc(r.accessCode)}</div>
+          <div class="detail-grid" style="margin-top:1rem">
+            <div class="detail-field"><div class="k">Pasien</div><div class="v">${esc(p?.name || "—")}</div></div>
+            <div class="detail-field"><div class="k">NIK</div><div class="v">${esc(p?.nik || "—")}</div></div>
+            <div class="detail-field"><div class="k">Cara Akses</div><div class="v">Portal → NIK + Kode</div></div>
+          </div>
+        </div>` : ""}
+      </div>
+    </div>
+
+    <!-- AI TRANSPARENCY -->
+    <div style="border-top:1px solid #e5e7eb; padding-top:1rem; margin-top:2rem; display:flex; gap:2rem; font-size:0.75rem; color:var(--text-dim); flex-wrap:wrap">
+      <div style="display:flex; align-items:center; gap:0.4rem"><b style="color:#374151">Nama Model AI:</b> RetiScan Ophthalmo-AI (Hybrid)</div>
+      <div style="display:flex; align-items:center; gap:0.4rem"><b style="color:#374151">Versi Model:</b> 4.2.1 (FundusDRGrading-resnet50 + Gemini 2.0 Flash)</div>
+      <div style="display:flex; align-items:center; gap:0.4rem"><b style="color:#374151">Dataset Pelatihan:</b> EyePACS, APTOS, DDR, Messidor</div>
+      <div style="display:flex; align-items:center; gap:0.4rem"><b style="color:#374151">Resolusi Gambar Input:</b> 4K / High Res</div>
+      <div style="display:flex; align-items:center; gap:0.4rem"><b style="color:#374151">Metode XAI:</b> Grad-CAM & Lesion Segmentation Mask</div>
+      <div style="display:flex; align-items:center; gap:0.4rem"><b style="color:#374151">Kerangka Klasifikasi:</b> International Clinical Diabetic Retinopathy (ICDR)</div>
+    </div>
+  `;
+}
+
+// kartu ringkas hasil triase — dipakai portal pasien, riwayat pemeriksaan, dan arsip admin
 function recordCard(r) {
   const d = r.diagnosis;
   const t = d.triage_assessment;
@@ -494,6 +838,12 @@ function recordCard(r) {
       </div>
 
       ${urgencyScale(t.urgency_level)}
+
+      ${r.vision?.dr_label ? `
+      <div class="rc-sec">Modul DR Specialist</div>
+      <div class="danger-chips">
+        <span class="danger-chip" style="${(r.vision.dr_grade || 0) < 2 ? "background:rgba(5,150,105,0.08);color:#059669;border-color:rgba(5,150,105,0.25)" : ""}">ICDR Grade ${r.vision.dr_grade} — ${esc(r.vision.dr_label)}</span>
+      </div>` : ""}
 
       <p class="rc-summary">${esc(ca.synthesis_summary)}</p>
 
@@ -529,18 +879,18 @@ function recordCard(r) {
         <div class="rc-emg-cols">
           <div>
             <div class="rc-emg-sub">Pertolongan Pertama</div>
-            <ul class="emg-list do">${ep.immediate_first_aid_instructions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+            <ul class="emg-list do">${(ep.immediate_first_aid_instructions || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
           </div>
           <div>
             <div class="rc-emg-sub">Jangan Dilakukan</div>
-            <ul class="emg-list dont">${ep.what_NOT_to_do.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+            <ul class="emg-list dont">${(ep.what_NOT_to_do || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
           </div>
         </div>
       </div>` : ""}
 
       <div class="rc-meta">
-        <div class="detail-field"><div class="k">Saran Obat Bebas</div><div class="v">${esc(rec.safe_otc_medication_advice)}</div></div>
-        <div class="detail-field"><div class="k">Rujukan</div><div class="v">${esc(rec.doctor_referral_details.specialist_needed)} — ${esc(rec.doctor_referral_details.examination_needed)}</div></div>
+        <div class="detail-field"><div class="k">Saran Obat Bebas</div><div class="v">${esc(rec.safe_otc_medication_advice || "—")}</div></div>
+        <div class="detail-field"><div class="k">Rujukan</div><div class="v">${rec.doctor_referral_details ? `${esc(rec.doctor_referral_details.specialist_needed)} — ${esc(rec.doctor_referral_details.examination_needed)}` : "—"}</div></div>
       </div>
     </div>`;
 }
@@ -604,9 +954,10 @@ function renderLogin() {
 // ============================================================
 async function renderNakesDashboard() {
   const u = currentUser();
-  const [s, myRecords, patients] = await Promise.all([
+  const [s, allMyRecords, patients] = await Promise.all([
     store.stats(), store.listRecords({ nakesUid: u.uid }), store.listPatients(),
   ]);
+  const myRecords = allMyRecords.filter(r => r.diagnosis);
   const pName = (id) => patients.find((p) => p.id === id)?.name || id;
 
   $app.innerHTML = `
@@ -682,14 +1033,11 @@ async function renderNakesDashboard() {
     <div style="display: flex; gap: 2rem; margin-top: 4rem; margin-bottom: 4rem; flex-wrap: wrap;">
       <div style="flex: 1.5; min-width: 300px; background: #fff; padding: 2.5rem; border-radius: 8px; border: 1px solid #e0e0e0; box-shadow: 0 4px 12px rgba(0,0,0,0.02);">
         <div style="font-size: 1.15rem; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2rem;">Triase Terakhir</div>
-        <div class="patient-list">
+        <div class="patient-list" style="display:flex; flex-direction:column; gap:1.5rem;">
           ${myRecords.slice(0, 8).map((r) => `
-            <a class="patient-item ${r.diagnosis.triage_assessment.is_emergency ? "kritis" : ""}" href="#/nakes/pasien/${r.patientId}" style="border: 1px solid #eaeaea; margin-bottom: 1rem; border-radius: 6px; padding: 1.2rem;">
-              <div class="patient-info">
-                <div class="patient-name" style="color: #222; font-weight: 600;">${esc(pName(r.patientId))}</div>
-                <div class="patient-meta" style="color: #888;">${fmtDate(r.createdAt)} · Confidence ${confPct(r.diagnosis.triage_assessment.confidence_score)}</div>
-              </div>
-              <div class="badges">${urgencyBadge(r.diagnosis.triage_assessment.urgency_level)}</div>
+            <a href="#/nakes/pasien/${r.patientId}" style="text-decoration:none; color:inherit; display:block; transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+              <div style="font-weight:700; color:var(--text); margin-bottom:0.5rem; font-size:1.05rem;">${esc(pName(r.patientId))}</div>
+              ${recordCard(r)}
             </a>`).join("") || `<div style="padding: 3rem; text-align: center; color: #888; font-weight: 600;">Belum ada riwayat triase.</div>`}
         </div>
       </div>
@@ -762,6 +1110,14 @@ function renderStep1() {
             <input id="s-img" type="file" accept="image/*" required />
             <img id="s-preview" class="retina-preview hidden" alt="Pratinjau foto mata" />
           </div>
+          <div class="full hidden" id="fundus-field">
+            <label for="s-fundus">2b · Upload Foto Fundus — Skrining Retinopati Diabetik (opsional)</label>
+            <input id="s-fundus" type="file" accept="image/*" />
+            <img id="s-fundus-preview" class="retina-preview hidden" alt="Pratinjau foto fundus" />
+            <p style="margin-top:0.5rem;color:var(--text-faint);font-size:0.8rem">
+              Gunakan foto dari <strong>fundus camera / oftalmoskop</strong> — bukan kamera HP biasa.
+              Model DR specialist akan menghitung grade Retinopati Diabetik (0–4).</p>
+          </div>
           <div class="full">
             <button class="btn btn-accent btn-block btn-xl" id="scr-analyze">🔍 Analisis dengan ML Vision</button>
           </div>
@@ -803,6 +1159,35 @@ function renderStep1() {
     reader.readAsDataURL(f);
   });
 
+  // Toggle field foto fundus — hanya untuk pasien dengan riwayat diabetes
+  const $dm = document.getElementById("s-dm");
+  const $fundusField = document.getElementById("fundus-field");
+  const $fundus = document.getElementById("s-fundus");
+  const syncFundusField = () => {
+    const show = $dm.value === "1";
+    $fundusField.classList.toggle("hidden", !show);
+    if (!show) {
+      scr.fundusDataUrl = null;
+      $fundus.value = "";
+      document.getElementById("s-fundus-preview").classList.add("hidden");
+    }
+  };
+  $dm.addEventListener("change", syncFundusField);
+  syncFundusField();
+
+  $fundus.addEventListener("change", () => {
+    const f = $fundus.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      scr.fundusDataUrl = reader.result;
+      const prev = document.getElementById("s-fundus-preview");
+      prev.src = reader.result;
+      prev.classList.remove("hidden");
+    };
+    reader.readAsDataURL(f);
+  });
+
   document.getElementById("s-nik").addEventListener("blur", async (e) => {
     const p = await store.findPatientByNIK(e.target.value.trim());
     if (p) {
@@ -813,6 +1198,7 @@ function renderStep1() {
       document.getElementById("s-htn").value = p.historyHipertensi ? "1" : "0";
       document.getElementById("s-lens").value = p.pakaiLensaKontak ? "1" : "0";
       document.getElementById("s-history").value = p.riwayatMataSebelumnya || "";
+      syncFundusField();
       scr.existingPatient = p;
       document.getElementById("s-hint").textContent =
         `✓ Pasien terdaftar — ${(await store.listRecords({ patientId: p.id })).length} riwayat triase ditemukan.`;
@@ -840,6 +1226,7 @@ function renderStep1() {
         patientId: patient.id,
         file: document.getElementById("s-img").files[0],
         imageDataUrl: scr.imageDataUrl,
+        fundusImageDataUrl: scr.fundusDataUrl || null,
       });
       scr.step = 2;
       renderTriase();
@@ -853,6 +1240,8 @@ function renderStep1() {
 
 function renderStep2() {
   const s = scr.session;
+  const drGrade = s.vision.dr_grade;
+  const drBadgeCls = drGrade == null ? "" : drGrade === 0 ? "ringan" : drGrade <= 2 ? "sedang" : "kritis";
   document.getElementById("triase-body").innerHTML = `
     <div class="split">
     <div>
@@ -861,6 +1250,7 @@ function renderStep2() {
         <div class="ai-box">
           <span class="badge badge-neutral">Kualitas Citra: ${esc(s.vision.quality)}</span>
           <span class="badge badge-neutral">${esc(s.vision.segment)}</span>
+          ${drGrade != null ? `<span class="badge badge-${drBadgeCls}">Retinopati Diabetik: Grade ${drGrade} — ${esc(s.vision.dr_label || "")}</span>` : ""}
           <p class="ai-reasoning">${esc(s.vision.raw_summary)}</p>
           <ul class="ai-recs">${s.vision.detected_features.map((f) => `<li>${esc(f.feature)} — skor ${f.severity.toFixed(2)}</li>`).join("")}</ul>
         </div>
@@ -892,6 +1282,8 @@ function renderStep2() {
       </div>
       ${scr.imageDataUrl ? `<div class="card"><div class="card-title">Foto Dianalisis</div>
         <img src="${scr.imageDataUrl}" class="retina-preview" alt="Foto mata pasien" /></div>` : ""}
+      ${scr.fundusDataUrl ? `<div class="card"><div class="card-title">Foto Fundus — DR Specialist</div>
+        <img src="${scr.fundusDataUrl}" class="retina-preview" alt="Foto fundus pasien" /></div>` : ""}
     </div>
     </div>
   `;
@@ -904,6 +1296,7 @@ function renderStep2() {
     btn.disabled = true; btn.textContent = "⏳ Ophthalmo-AI menyusun triase final…";
     try {
       scr.result = await store.finalizeScreening(s.id, symptoms);
+      scr.symptoms = symptoms;
       scr.step = 3;
       renderTriase();
     } catch (err) {
@@ -915,42 +1308,45 @@ function renderStep2() {
 }
 
 function renderStep3() {
-  const { diagnosis, accessCode } = scr.result;
+  const { diagnosis, accessCode, record } = scr.result;
   const t = diagnosis.triage_assessment;
 
   document.getElementById("triase-body").innerHTML = `
-    <div class="split">
-    <div>
-      ${recordCard({ diagnosis, createdAt: new Date().toISOString(), puskesmas: currentUser().puskesmas })}
-      <div class="card">
-        <div class="card-title">Langkah Berikutnya</div>
-        <div style="display:flex;gap:0.8rem;flex-wrap:wrap">
-          <a class="btn btn-accent" href="#/nakes/pasien/${scr.patient.id}" data-reset="1">Lihat Rekam Medis Pasien</a>
-          <a class="btn" href="#/nakes/triase" data-reset="1">＋ Triase Pasien Lain</a>
-          <a class="btn" href="#/nakes" data-reset="1">Kembali ke Dashboard</a>
-        </div>
+    ${clinicalDashboard({
+      diagnosis,
+      vision: scr.result?.vision || scr.session?.vision || null,
+      symptoms: scr.symptoms || null,
+      createdAt: new Date().toISOString(),
+      puskesmas: currentUser()?.puskesmas || "Klinik Umum",
+      accessCode,
+      recordId: record?.id || null,
+      fundusImageDataUrl: scr.fundusDataUrl || null,
+      imageDataUrl: scr.imageDataUrl || null,
+    }, scr.patient)}
+    <div class="dash-card" style="margin-top:1.5rem">
+      <div class="dash-card-title">Langkah Berikutnya</div>
+      <div style="display:flex;gap:0.8rem;flex-wrap:wrap">
+        <a class="btn btn-accent" href="#/nakes/pasien/${scr.patient.id}" data-reset="1">Lihat Rekam Medis Pasien</a>
+        <a class="btn" href="#/nakes/triase" data-reset="1">＋ Triase Pasien Lain</a>
+        <a class="btn" href="#/nakes" data-reset="1">Kembali ke Dashboard</a>
       </div>
-    </div>
-    <div>
-      <div class="card card-dark">
-        <div class="card-title">Ringkasan Triase</div>
-        <div class="detail-grid">
-          <div class="detail-field"><div class="k">Urgensi</div><div class="v">${urgencyBadge(t.urgency_level)}</div></div>
-          <div class="detail-field"><div class="k">Kategori Tindakan</div><div class="v">${actionBadge(t.primary_action_category)}</div></div>
-        </div>
-      </div>
-      <div class="card card-dark">
-        <div class="card-title">Kode Akses Pasien — Berikan kpd Pasien</div>
-        <div class="code-display">${esc(accessCode)}</div>
-        <div class="detail-grid" style="margin-top:1rem">
-          <div class="detail-field"><div class="k">Pasien</div><div class="v">${esc(scr.patient.name)}</div></div>
-          <div class="detail-field"><div class="k">NIK</div><div class="v">${esc(scr.patient.nik)}</div></div>
-          <div class="detail-field"><div class="k">Cara Akses</div><div class="v">Portal → NIK + Kode</div></div>
-        </div>
-      </div>
-    </div>
     </div>
   `;
+
+  // Simpan catatan oftalmologis ke rekam medis yang baru dibuat
+  document.getElementById("dash-notes-save")?.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = "⏳ Menyimpan…";
+    try {
+      await store.updateRecordStatus(record.id, "Selesai", document.getElementById("dash-notes").value.trim());
+      toast("✓ Catatan tersimpan — kasus ditandai selesai.");
+      btn.textContent = "✓ Tersimpan";
+    } catch (err) {
+      toast("Gagal menyimpan catatan: " + err.message);
+      btn.disabled = false; btn.textContent = "✓ Simpan Catatan & Tandai Selesai";
+    }
+  });
+
   document.querySelectorAll("[data-reset]").forEach((a) =>
     a.addEventListener("click", () => {
       scr = null;
@@ -1029,21 +1425,34 @@ async function renderPasienList() {
 }
 
 async function renderPasienDetail(pid) {
-  const [p, records] = await Promise.all([store.getPatient(pid), store.listRecords({ patientId: pid })]);
+  const [p, allRecords] = await Promise.all([store.getPatient(pid), store.listRecords({ patientId: pid })]);
   if (!p) { $app.innerHTML = `<div class="empty-state">Pasien tidak ditemukan.</div>`; return; }
 
+  const records = allRecords.filter(r => r.diagnosis); // Hanya ambil yang sudah selesai triasenya
+  const latest = records[0] || null;
+  const t = latest?.diagnosis?.triage_assessment || null;
+  const um = t ? (URGENCY_META[t.urgency_level] || URGENCY_META.LOW) : null;
+  const ca = latest?.diagnosis?.clinical_analysis || null;
+  const ep = latest?.diagnosis?.emergency_care_protocol || null;
+  const rec = latest?.diagnosis?.recommendations || null;
+  const vision = latest?.vision || null;
+  const drGrade = vision?.dr_grade ?? null;
+  const dm = drGrade != null ? (DR_META[drGrade] || DR_META[4]) : null;
+  const drCol = dm ? (dm.cls === "good" ? "#059669" : dm.cls === "warn" ? "#d97706" : "#dc2626") : null;
+  const drProbs = vision?.dr?.class_probabilities || null;
+  const drConf = drProbs ? Math.max(...Object.values(drProbs)) : null;
+  const eye = EYE_LABEL[latest?.symptoms?.mataTerdampak] || null;
+  const isSelesai = latest?.status === "Selesai";
+
   $app.innerHTML = `
-    <div class="page-header">
-      <div class="eyebrow">Rekam Medis Pasien</div>
-      <h1 class="page-title">${esc(p.name)}</h1>
-      <p class="page-sub">NIK ${esc(p.nik)} · ${esc(p.age)} tahun · ${p.gender === "L" ? "Laki-laki" : "Perempuan"}
-      ${p.historyDiabetes ? " · Riwayat Diabetes" : ""}${p.historyHipertensi ? " · Riwayat Hipertensi" : ""}</p>
-    </div>
-    <div class="split">
-    <div>
-      ${records.length ? `
-      <div class="tl">
-        ${records.map((r) => `
+    ${latest ? clinicalDashboard(latest, p) : `<div class="empty-state">Belum ada hasil triase untuk pasien ini.</div>`}
+
+      ${records.length > 1 ? `
+      <!-- Riwayat pemeriksaan sebelumnya (fitur catatan per-rekam tetap utuh) -->
+      <div id="riwayat-lama" style="margin-top:2rem">
+        <div class="dash-card-title">🕐 Pemeriksaan Sebelumnya (${records.length - 1})</div>
+        <div class="tl">
+          ${records.slice(1).map((r) => `
           <div class="tl-item ${(URGENCY_META[r.diagnosis.triage_assessment.urgency_level] || URGENCY_META.LOW).cls}">
             ${recordCard(r)}
             <div class="card" style="margin-top: 1rem; border: 1px solid #e0e0e0; box-shadow: none;">
@@ -1064,9 +1473,45 @@ async function renderPasienDetail(pid) {
                    </form>`}
             </div>
           </div>`).join("")}
-      </div>` : `<div class="empty-state">Belum ada hasil triase untuk pasien ini.</div>`}
+        </div>
+      </div>` : ""}
     </div>
+
+    <!-- ===== Kolom Kanan ===== -->
     <div>
+      <div class="dash-card">
+        <div class="dash-card-title">👁 Penampil Fundus</div>
+        <div class="fundus-viewer" style="min-height:220px;display:flex;align-items:center;justify-content:center">
+          <div style="color:#9ca3af;font-size:0.85rem;text-align:center;padding:1.5rem;line-height:1.6">
+            ${drGrade != null
+              ? "Citra fundus telah dianalisis oleh modul<br>DR Specialist (FundusDRGrading-resnet50)."
+              : "Tidak ada citra fundus<br>untuk pemeriksaan ini."}
+          </div>
+          <div class="fundus-overlay">${eye ? esc(eye) : "Fundus"}${drGrade != null ? ` • ICDR Grade ${drGrade}` : ""}</div>
+        </div>
+        ${vision?.dr_label ? `<div class="dr-chips" style="margin-bottom:0"><span class="dr-chip">Grade ${drGrade}</span><span class="dr-chip">${esc(vision.dr_label)}</span></div>` : ""}
+      </div>
+
+      ${latest ? `
+      <div class="dash-card">
+        <div class="dash-card-title">📝 Catatan Oftalmologis</div>
+        <div style="margin-bottom:0.8rem">${isSelesai ? `<span class="badge badge-ringan">🟢 Sudah Ditangani</span>` : `<span class="badge badge-pending">🔴 Menunggu Tindakan</span>`}</div>
+        <form class="notes-form" data-rid="${latest.id}">
+          <textarea class="clinical-notes nakes-notes" placeholder="Masukkan observasi klinis, konfirmasi temuan AI, atau tambahkan rencana perawatan di sini...">${esc(latest.nakesNotes || "")}</textarea>
+          <div class="action-grid">
+            <button type="submit" class="btn btn-accent btn-full">${isSelesai ? "Simpan Perubahan Catatan" : "✓ Simpan & Tandai Selesai"}</button>
+          </div>
+        </form>
+      </div>` : ""}
+
+      <div class="dash-card">
+        <div class="action-grid">
+          <a class="btn btn-accent btn-full" href="#/nakes/triase">＋ Triase Baru utk Pasien Ini</a>
+          <button type="button" class="btn btn-outline" onclick="window.print()">🖨 Cetak Laporan</button>
+          <button type="button" class="btn btn-outline" ${records.length > 1 ? `onclick="document.getElementById('riwayat-lama').scrollIntoView({behavior:'smooth'})"` : "disabled"}>🕐 Riwayat Lama</button>
+        </div>
+      </div>
+
       <div class="card card-dark">
         <div class="card-title">Profil Pasien</div>
         <div class="detail-grid">
@@ -1074,15 +1519,11 @@ async function renderPasienDetail(pid) {
           <div class="detail-field"><div class="k">Urgensi Terakhir</div><div class="v">${records[0]
             ? `<span class="udot ${(URGENCY_META[records[0].diagnosis.triage_assessment.urgency_level] || URGENCY_META.LOW).cls}"></span>${esc(URGENCY[records[0].diagnosis.triage_assessment.urgency_level].label)}`
             : "—"}</div></div>
+          <div class="detail-field"><div class="k">NIK Lengkap</div><div class="v">${esc(p.nik)}</div></div>
           <div class="detail-field"><div class="k">Kode Akses</div><div class="v">${p.accessCode ? esc(p.accessCode) : "Belum dibuat"}</div></div>
           <div class="detail-field"><div class="k">Terdaftar</div><div class="v">${fmtDate(p.createdAt)}</div></div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-title">Aksi</div>
-        <a class="btn btn-accent btn-block" href="#/nakes/triase">＋ Triase Baru utk Pasien Ini</a>
-      </div>
-    </div>
     </div>
     </div>
   `;

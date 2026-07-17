@@ -68,9 +68,18 @@ async function firebase() {
   const fsMod   = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
   const authMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
   const app = appMod.initializeApp(firebaseConfig);
+  const db = fsMod.getFirestore(app);
+  const auth = authMod.getAuth(app);
+
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    console.log("Connecting to Firebase Emulators...");
+    fsMod.connectFirestoreEmulator(db, "localhost", 8080);
+    authMod.connectAuthEmulator(auth, "http://localhost:9099");
+  }
+
   fb = {
-    db:   fsMod.getFirestore(app),
-    auth: authMod.getAuth(app),
+    db,
+    auth,
     fsMod, authMod,
   };
   return fb;
@@ -144,8 +153,15 @@ export const store = {
   },
 
   // ---------- TRIASE (2 tahap: vision → penalaran klinis) ----------
-  async analyzeEyePhoto({ patientId, imageDataUrl }) {
-    return await callBackend("/api/vision", { patientId, imageBase64: imageDataUrl.split(",")[1] });
+  // fundusImageDataUrl (opsional): foto fundus pasien riwayat diabetes →
+  // backend meneruskannya ke model DR specialist (DR_ENDPOINT).
+  async analyzeEyePhoto({ patientId, imageDataUrl, fundusImageDataUrl }) {
+    const body = { patientId, imageBase64: imageDataUrl.split(",")[1] };
+    if (fundusImageDataUrl) {
+      body.isFundus = true;
+      body.fundusImageBase64 = fundusImageDataUrl.split(",")[1];
+    }
+    return await callBackend("/api/vision", body);
   },
 
   async finalizeScreening(sessionId, symptoms) {

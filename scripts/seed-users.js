@@ -17,7 +17,16 @@
 // ============================================================
 
 const admin = require("firebase-admin");
-const serviceAccount = require("./serviceAccount.json");
+
+let serviceAccount = null;
+try {
+  serviceAccount = require("./serviceAccount.json");
+} catch (e) {
+  if (!process.env.FIRESTORE_EMULATOR_HOST && !process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+    console.error("Gagal memuat serviceAccount.json. Silakan unduh dari Firebase Console atau jalankan dengan emulator.");
+    process.exit(1);
+  }
+}
 
 // ---------- GANTI SESUAI KEBUTUHAN ----------
 const SEED = [
@@ -38,7 +47,13 @@ const SEED = [
 ];
 // --------------------------------------------
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+if (serviceAccount) {
+  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+} else {
+  admin.initializeApp({
+    projectId: process.env.FIREBASE_PROJECT_ID || "hackathon-b1653"
+  });
+}
 const db = admin.firestore();
 
 async function seedUser({ email, password, name, role, puskesmas }) {
